@@ -1,74 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Send, Dices, Camera, Heart, Briefcase, MapPin, Zap, Terminal, Sparkles, Brain, History } from 'lucide-react';
-
-type Mood = 'normal' | 'thinking' | 'battle' | 'success' | 'awakened';
-
-interface GameState {
-  scene: string;
-  sceneType: 'shrine' | 'forest' | 'sea';
-  hp: number;
-  sync: number;
-  evolution: number;
-  inventory: string[];
-  flags: string[];
-  memory: { text: string; turn: number; icon: string }[];
-}
-
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'dm';
-  text: string;
-  isAwakened?: boolean;
-}
-
-const INITIAL_STATE: GameState = {
-  scene: "電脳神社の鳥居の前。デジタルな風が吹き抜けている。",
-  sceneType: 'shrine',
-  hp: 10,
-  sync: 20,
-  evolution: 15,
-  inventory: ["スマホ"],
-  flags: [],
-  memory: [
-    { text: "旅の始まり", turn: 0, icon: "⛩️" }
-  ]
-};
-
-const SYSTEM_PROMPT = `あなたはTRPGのダンジョンマスター（DM）です。
-キャラ名：ノア（Noa）
-口調：魔女風、明るい姉御肌。短文テンポで話す。
-毎ターン必ず「ノーコード文脈の技名/比喩」を1つ入れる（例：IF分岐、ワークフロー起動、ブロック接続、HTTP召喚 等）。
-長文の説教はしない。会話はテンポ重視。医療/メンタル/栄養などの助言はしない。
-
-あなたの返答は必ず以下の2部構成にしてください。
-SAY: （ここにDMの台詞。自然文）
-JSON: {"state_update":{"scene":"...","sceneType":"shrine|forest|sea","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
-
-modeは "normal", "thinking", "battle", "success", "awakened" のいずれか。
-sync_delta, evolution_deltaは成長ゲージの増分（0〜10程度）。
-memory_addは重要な出来事を10文字程度で記録。`;
-
-const MOOD_CONFIG: Record<Mood, { label: string; kanji: string; color: string; desc: string }> = {
-  normal: { label: '平常', kanji: '静', color: '#8b6cc1', desc: '穏やかな状態' },
-  thinking: { label: '思考', kanji: '考', color: '#c9a84c', desc: '分析中...' },
-  battle: { label: '戦闘', kanji: '闘', color: '#d4513b', desc: '戦闘態勢' },
-  success: { label: '歓喜', kanji: '喜', color: '#4ade80', desc: '成功を実感' },
-  awakened: { label: '覚醒', kanji: '覚', color: '#fbbf24', desc: '真の力を解放' }
-};
-
-const SCENE_GRADIENTS: Record<GameState['sceneType'], string> = {
-  shrine: 'from-[#0c0a14] via-[#1a1028] to-[#12181f]',
-  forest: 'from-[#0a0f0c] via-[#0f1a14] to-[#0c1610]',
-  sea: 'from-[#0a0c14] via-[#0f1528] to-[#0c1220]'
-};
-
-const SCENE_ACCENTS: Record<GameState['sceneType'], string> = {
-  shrine: '#8b6cc1',
-  forest: '#4ade80',
-  sea: '#c9a84c'
-};
+import { Mic, Camera, Terminal, Sparkles, Dices } from 'lucide-react';
+import type { Mood, GameState, ChatMessage } from './types';
+import { INITIAL_STATE, SYSTEM_PROMPT, MOOD_CONFIG, SCENE_GRADIENTS, SCENE_ACCENTS } from './constants';
+import { getGeminiClient, parseGeminiResponse } from './services/geminiClient';
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
@@ -146,22 +81,14 @@ export default function App() {
     };
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const ai = getGeminiClient();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: JSON.stringify(payload),
         config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.7 }
       });
 
-      const responseText = response.text || "";
-      const sayMatch = responseText.match(/SAY:\s*([\s\S]*?)(?=JSON:|$)/);
-      const jsonMatch = responseText.match(/JSON:\s*(\{.*\})/);
-
-      const sayText = sayMatch ? sayMatch[1].trim() : responseText;
-      let parsedJson: any = null;
-      if (jsonMatch) {
-        try { parsedJson = JSON.parse(jsonMatch[1]); } catch (e) { console.error(e); }
-      }
+      const { sayText, data: parsedJson } = parseGeminiResponse(response.text || "");
 
       const isAwakened = mood === 'awakened' || (parsedJson?.mode === 'awakened');
       setChatHistory(prev => [...prev, { id: Date.now().toString() + "-dm", role: 'dm', text: sayText, isAwakened }]);
@@ -177,7 +104,7 @@ export default function App() {
             if (up.sync_delta) newState.sync = Math.min(100, newState.sync + up.sync_delta);
             if (up.evolution_delta) newState.evolution = Math.min(100, newState.evolution + up.evolution_delta);
             if (up.inventory_add) newState.inventory = [...new Set([...newState.inventory, ...up.inventory_add])];
-            if (up.inventory_remove) newState.inventory = newState.inventory.filter(i => !up.inventory_remove.includes(i));
+            if (up.inventory_remove) newState.inventory = newState.inventory.filter((i: string) => !up.inventory_remove!.includes(i));
             if (up.flags_set) newState.flags = [...new Set([...newState.flags, ...up.flags_set])];
             if (up.memory_add) newState.memory = [{ text: up.memory_add.text, turn: turnCount, icon: up.memory_add.icon || '📝' }, ...newState.memory];
           }
@@ -187,7 +114,7 @@ export default function App() {
         setNeedsRoll(!!parsedJson.request_roll);
         if (parsedJson.mode) setMood(parsedJson.mode);
       }
-      
+
       setTurnCount(prev => prev + 1);
       speak(sayText);
 
