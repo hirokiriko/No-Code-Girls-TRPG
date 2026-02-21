@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { AnimatePresence } from 'motion/react';
 import { Terminal } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useChat } from './hooks/useChat';
@@ -58,13 +57,11 @@ export default function App() {
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
       {/* Upper Section */}
       <div className="flex-1 flex flex-row overflow-hidden border-b border-wisteria/10">
-        <ScenePanel sceneType={gameState.sceneType} scene={gameState.scene}>
-          <DiceOverlay rollResult={rollResult} />
-        </ScenePanel>
+        <ScenePanel sceneType={gameState.sceneType} scene={gameState.scene} />
         <CharacterPanel mood={mood} gameState={gameState} isAwakened={isAwakened} />
       </div>
 
-      {/* Lower Section: Chat Panel */}
+      {/* Chat Panel */}
       <ChatPanel
         chatHistory={chatHistory}
         isAwakened={isAwakened}
@@ -76,6 +73,9 @@ export default function App() {
         onRollDice={handleRollDice}
         onCameraDeclare={handleCameraDeclare}
       />
+
+      {/* Dice Overlay (inside scene area) */}
+      <DiceOverlay rollResult={rollResult} />
 
       {/* Overlays */}
       <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSI0Ii8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')] bg-[length:128px_128px]" />
@@ -93,12 +93,9 @@ export default function App() {
         <Terminal className="w-4 h-4" />
       </button>
 
-      {/* Dev Panel Modal */}
-      <AnimatePresence>
-        {showDevPanel && (
-          <DevPanel onClose={() => setShowDevPanel(false)} />
-        )}
-      </AnimatePresence>
+      <AnimatedOverlay show={showDevPanel} className="">
+        <DevPanel onClose={() => setShowDevPanel(false)} />
+      </AnimatedOverlay>
     </div>
   );
 }

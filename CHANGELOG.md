@@ -2,6 +2,21 @@
 
 All notable changes to the **No-Code Girls TRPG** project will be documented in this file.
 
+## [Unreleased] - 2026-02-21
+
+### Refactored
+- **Wave 1**: Fixed SpeechRecognition closure bug (useRef pattern for latest handleSendMessage)
+- **Wave 2**: Extracted types (`src/types/`), constants (`src/constants/`), and API client (`src/services/geminiClient.ts`) from App.tsx
+- **Wave 3**: Extracted 4 custom hooks (`useGameState`, `useChat`, `useSpeech`, `useDice`) from App.tsx
+- **Wave 4**: Split UI into 6 components (`ScenePanel`, `CharacterPanel`, `ChatPanel`, `DiceOverlay`, `AnimatedOverlay`, `DevPanel`)
+- **Wave 5**: Final cleanup — App.tsx reduced to ~80 line orchestration layer, added ESLint/tsconfig strict mode/.editorconfig
+
+### Improved
+- Singleton Gemini API client (was re-instantiated every request)
+- Bracket-depth JSON parser replacing greedy regex
+- Pure functions exported for testability: `applyStateUpdate`, `isAwakeningReady`, `rollDice`, `isRollSuccess`, `parseGeminiResponse`
+- GaugeBar local helper component eliminates Sync/Evolution code duplication
+
 ## [1.1.0] - 2026-02-20
 
 ### Added

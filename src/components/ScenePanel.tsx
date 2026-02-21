@@ -1,14 +1,12 @@
-import type { ReactNode } from 'react';
 import { SCENE_GRADIENTS, SCENE_ACCENTS } from '../constants';
 import type { GameState } from '../types';
 
 interface ScenePanelProps {
   sceneType: GameState['sceneType'];
   scene: string;
-  children?: ReactNode;
 }
 
-export function ScenePanel({ sceneType, scene, children }: ScenePanelProps) {
+export function ScenePanel({ sceneType, scene }: ScenePanelProps) {
   return (
     <div className="flex-[1_1_60%] relative overflow-hidden rounded-tl-[4px]">
       {/* Background Gradient */}
@@ -52,7 +50,6 @@ export function ScenePanel({ sceneType, scene, children }: ScenePanelProps) {
         style={{ background: `linear-gradient(90deg, transparent, ${SCENE_ACCENTS[sceneType]}33, transparent)` }}
       />
 
-      {children}
     </div>
   );
 }

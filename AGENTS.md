@@ -5,12 +5,52 @@ This document is intended for AI Coding Agents to understand the technical archi
 ## System Architecture
 The application is a React-based Single Page Application (SPA) that integrates directly with the Gemini API for Game Master (DM) logic.
 
+### Directory Structure
+```
+src/
+├── main.tsx                    # エントリーポイント
+├── index.css                   # グローバルスタイル・アニメーション定義
+├── App.tsx                     # ルートレイアウト（hooks 呼び出し + コンポーネント配置のみ）
+│
+├── types/
+│   ├── index.ts                # 全型定義（GameState, Mood, ChatMessage, RollResult 等）
+│   └── speech.ts               # Web Speech API の型補完
+│
+├── constants/
+│   └── index.ts                # INITIAL_STATE, SYSTEM_PROMPT, MOOD_CONFIG, SCENE_*, Motion バリアント
+│
+├── services/
+│   └── geminiClient.ts         # Gemini API シングルトンクライアント + レスポンスパーサー
+│
+├── hooks/
+│   ├── useGameState.ts         # GameState・mood・turnCount 管理 + applyStateUpdate 純粋関数
+│   ├── useChat.ts              # チャット履歴 + Gemini API メッセージ送信
+│   ├── useSpeech.ts            # Web Speech API（音声認識 + 音声合成）
+│   └── useDice.ts              # ダイスロール判定 + rollDice/isRollSuccess 純粋関数
+│
+└── components/
+    ├── ScenePanel.tsx           # シーン背景・装飾
+    ├── CharacterPanel.tsx       # キャラ情報（ポートレート・成長ゲージ・記憶ログ）
+    ├── ChatPanel.tsx            # チャットUI（inputText/chatEndRef をローカル管理）
+    ├── DiceOverlay.tsx          # ダイスロール結果オーバーレイ
+    ├── AnimatedOverlay.tsx      # Motion 共通オーバーレイラッパー
+    └── DevPanel.tsx             # 開発パネル（要件定義プロンプト出力）
+```
+
 ### Key Components
-- **`src/App.tsx`**: Main entry point containing the game loop, state management, and UI.
-- **Wafuu-Tech Design System**: A custom aesthetic combining traditional Japanese elements (Asanoha patterns, Zen fonts) with technical UI (Monospace fonts, growth gauges).
-- **Gemini Integration**: Uses `@google/genai` to communicate with `gemini-3-flash-preview`.
-- **State Management**: Uses React `useState` for game state (scene, hp, sync, evolution, inventory, flags, memory).
-- **Voice Interaction**: Uses Web Speech API for recognition and Speech Synthesis API for text-to-speech.
+- **`src/App.tsx`**: Orchestration layer (~80 lines). Calls hooks and distributes props to components.
+- **Wafuu-Tech Design System**: A custom aesthetic combining traditional Japanese elements (Asanoha patterns, Zen fonts) with technical UI.
+- **Gemini Integration**: Uses `@google/genai` singleton client via `services/geminiClient.ts`.
+- **State Management**: Custom hooks (`useGameState`, `useChat`, `useDice`, `useSpeech`) encapsulate all state logic.
+- **Voice Interaction**: Isolated in `useSpeech` hook using Web Speech API.
+
+### Data Flow
+```
+User Input → Hooks (useChat/useSpeech/useDice)
+  → Gemini API (services/geminiClient.ts)
+  → State Update (useGameState.applyStateUpdate)
+  → Components (ScenePanel/CharacterPanel/ChatPanel/DiceOverlay)
+```
 
 ## Gemini Communication Protocol
 The DM (Gemini) must follow a strict two-part response format:
@@ -29,7 +69,7 @@ The DM (Gemini) must follow a strict two-part response format:
     "inventory_add": "string[] (optional)",
     "inventory_remove": "string[] (optional)",
     "flags_set": "string[] (optional)",
-    "memory_add": { "text": "string", "icon": "string" } (optional)
+    "memory_add": { "text": "string", "icon": "string" }
   },
   "request_roll": "boolean",
   "roll_type": "d20 | null",
@@ -47,13 +87,13 @@ The UI reacts to the `mode` returned in the JSON or the current interaction stat
 - `awakened`: True power released (Sync > 40 & Evo > 40).
 
 ## Development Constraints
-- **API Keys**: `GEMINI_API_KEY` is injected via `process.env`.
-- **Styling**: Tailwind CSS 4 is used for all styling.
-- **Animations**: `motion/react` (Framer Motion) handles transitions.
+- **API Keys**: `VITE_GEMINI_API_KEY` via `import.meta.env` (singleton in `geminiClient.ts`).
+- **Styling**: Tailwind CSS 4 for all styling.
+- **Animations**: `motion/react` (Framer Motion) for state transitions; CSS animations for ambient effects.
 - **Icons**: `lucide-react`.
 
 ## Documentation Maintenance Rules
-- **Latest State Only**: All documentation files (`AGENTS.md`, `README.md`, `HUMANS.md`, etc.) must always reflect the **current** state of the application.
+- **Latest State Only**: All documentation files must always reflect the **current** state of the application.
 - **No Historical Bloat**: Do not keep old logic, deprecated code snippets, or version history in these files.
-- **Changelog**: All historical changes, versioning, and major updates must be recorded in `CHANGELOG.md`.
-- **Consistency**: Ensure that any change in `App.tsx` logic is immediately reflected in the corresponding documentation sections.
+- **Changelog**: All historical changes must be recorded in `CHANGELOG.md`.
+- **Consistency**: Ensure that any code change is immediately reflected in the corresponding documentation sections.
