@@ -23,5 +23,6 @@ An interactive, voice-powered TRPG demo where Gemini acts as a Dungeon Master (D
 
 ## Documentation
 - [AGENTS.md](./AGENTS.md): Technical documentation for AI agents.
+- [HACKATHON.md](./HACKATHON.md): Hackathon strategy and requirements.
 - [HUMANS.md](./HUMANS.md): User guide and character lore (English).
 - [HUMANS-ja.md](./HUMANS-ja.md): ユーザーガイドとキャラクター設定 (日本語).

@@ -14,6 +14,7 @@ All notable changes to the **No-Code Girls TRPG** project will be documented in 
 - Added "Camera Declaration" feature to simulate physical items being brought into the game.
 - Included a "Dev Panel" for exporting AI Studio requirement prompts.
 - Established documentation suite: `README.md`, `AGENTS.md`, `HUMANS.md`, `HUMANS-ja.md`, `CLAUDE.md`, and `CHANGELOG.md`.
+- Added `HACKATHON.md` to document strategy, core experience, and timeline for the upcoming hackathon.
 
 ### Fixed
 - Resolved syntax errors in `App.tsx` related to backslash escaping in template literals.
