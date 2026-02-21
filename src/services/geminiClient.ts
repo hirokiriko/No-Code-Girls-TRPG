@@ -2,12 +2,25 @@
 import { GoogleGenAI } from '@google/genai';
 import type { DMResponse, ParsedDMResponse } from '../types';
 
+const STORAGE_KEY = 'gemini_api_key';
+
 // シングルトンクライアント
 let client: GoogleGenAI | null = null;
 
+/** localStorage → 環境変数の順で API キーを取得 */
+export function getApiKey(): string | null {
+  return localStorage.getItem(STORAGE_KEY) || import.meta.env.VITE_GEMINI_API_KEY || null;
+}
+
+/** API キーを localStorage に保存し、クライアントをリセット */
+export function setApiKey(key: string): void {
+  localStorage.setItem(STORAGE_KEY, key);
+  client = null;
+}
+
 export function getGeminiClient(): GoogleGenAI {
   if (!client) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = getApiKey();
     if (!apiKey) throw new Error('VITE_GEMINI_API_KEY が設定されていません');
     client = new GoogleGenAI({ apiKey });
   }

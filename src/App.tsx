@@ -10,8 +10,27 @@ import { ChatPanel } from './components/ChatPanel';
 import { DiceOverlay } from './components/DiceOverlay';
 import { DevPanel } from './components/DevPanel';
 import { AnimatedOverlay } from './components/AnimatedOverlay';
+import { ApiKeyScreen } from './components/ApiKeyScreen';
+import { getApiKey, setApiKey } from './services/geminiClient';
 
 export default function App() {
+  const [hasApiKey, setHasApiKey] = useState(() => !!getApiKey());
+
+  if (!hasApiKey) {
+    return (
+      <ApiKeyScreen
+        onSubmit={(key) => {
+          setApiKey(key);
+          setHasApiKey(true);
+        }}
+      />
+    );
+  }
+
+  return <Game />;
+}
+
+function Game() {
   const [showDevPanel, setShowDevPanel] = useState(false);
 
   const {
