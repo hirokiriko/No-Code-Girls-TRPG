@@ -11,6 +11,22 @@ const EMOTION_PROMPTS: Record<Mood, string> = {
   normal:   '明るく姉御口調で言って',
 };
 
+// シングルトン AudioContext（autoplay policy 対策）
+let sharedAudioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedAudioCtx || sharedAudioCtx.state === 'closed') {
+    sharedAudioCtx = new AudioContext({ sampleRate: 24000 });
+  }
+  return sharedAudioCtx;
+}
+
+/** ユーザージェスチャー内で呼び出し、AudioContext を running 状態にする */
+export async function unlockAudioContext(): Promise<void> {
+  const ctx = getAudioContext();
+  if (ctx.state === 'suspended') await ctx.resume();
+}
+
 /** base64 PCM (16bit, 24kHz, mono) → Float32Array に変換して AudioContext で再生 */
 async function playPcmBase64(base64: string): Promise<void> {
   const binary = atob(base64);
@@ -24,7 +40,8 @@ async function playPcmBase64(base64: string): Promise<void> {
     float32[i] = view.getInt16(i * 2, true) / 32768;
   }
 
-  const ctx = new AudioContext({ sampleRate: 24000 });
+  const ctx = getAudioContext();
+  if (ctx.state === 'suspended') await ctx.resume();
   const buffer = ctx.createBuffer(1, samples, 24000);
   buffer.copyToChannel(float32, 0);
 
@@ -33,7 +50,7 @@ async function playPcmBase64(base64: string): Promise<void> {
   source.connect(ctx.destination);
   source.start();
 
-  return new Promise(resolve => { source.onended = () => { ctx.close(); resolve(); }; });
+  return new Promise(resolve => { source.onended = () => resolve(); });
 }
 
 /** Gemini TTS でテキストを読み上げる。失敗時は Web Speech API にフォールバック */

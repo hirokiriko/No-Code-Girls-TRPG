@@ -14,6 +14,7 @@ import { AnimatedOverlay } from './components/AnimatedOverlay';
 import { ApiKeyScreen } from './components/ApiKeyScreen';
 import { getApiKey, setApiKey } from './services/geminiClient';
 import { generateSceneImage } from './services/imagenClient';
+import { unlockAudioContext } from './services/ttsClient';
 
 export default function App() {
   const [hasApiKey, setHasApiKey] = useState(() => !!getApiKey());
@@ -23,6 +24,7 @@ export default function App() {
       <ApiKeyScreen
         onSubmit={(key) => {
           setApiKey(key);
+          unlockAudioContext(); // ユーザークリック内で AudioContext を解放
           setHasApiKey(true);
         }}
       />
@@ -43,8 +45,8 @@ function Game() {
     sceneImageUrl, setSceneImageUrl,
   } = useGameState();
 
-  // Lyria RealTime BGM — mood に追従
-  useLyriaBGM({ mood });
+  // Lyria RealTime BGM — ユーザー操作を契機に接続
+  const { ensureConnected: ensureLyriaConnected } = useLyriaBGM({ mood });
 
   const sendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
   const needsRollRef = useRef<(needs: boolean) => void>(() => {});
@@ -73,11 +75,18 @@ function Game() {
     onSceneChange: handleSceneChange,
   });
 
+  // ユーザー操作時に AudioContext アンロック + Lyria 接続を開始
+  const handleSendMessage = useCallback((text: string, diceVal: number | null = null) => {
+    unlockAudioContext();
+    ensureLyriaConnected();
+    chat.handleSendMessage(text, diceVal);
+  }, [ensureLyriaConnected, chat.handleSendMessage]);
+
   const dice = useDice((diceVal: number) => {
-    chat.handleSendMessage('', diceVal);
+    handleSendMessage('', diceVal);
   });
 
-  sendMessageRef.current = chat.handleSendMessage;
+  sendMessageRef.current = handleSendMessage;
   needsRollRef.current = dice.setNeedsRoll;
 
   // 覚醒メッセージをチャットに注入
@@ -106,7 +115,7 @@ function Game() {
         mood={mood}
         needsRoll={dice.needsRoll}
         isRecording={speech.isRecording}
-        onSendMessage={chat.handleSendMessage}
+        onSendMessage={handleSendMessage}
         onToggleRecording={speech.toggleRecording}
         onRollDice={dice.handleRollDice}
         onCameraDeclare={chat.handleCameraDeclare}

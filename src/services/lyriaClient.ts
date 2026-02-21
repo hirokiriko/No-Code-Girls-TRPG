@@ -1,6 +1,7 @@
 // src/services/lyriaClient.ts
+import { GoogleGenAI } from '@google/genai';
 import type { Mood } from '../types';
-import { getGeminiClient } from './geminiClient';
+import { getApiKey } from './geminiClient';
 
 const BGM_PROMPTS: Record<Mood, string> = {
   normal:   '渋谷を探索する魔法少女、ジャズとシンセが融合したBGM、中テンポ、夜の都市',
@@ -26,8 +27,23 @@ export class LyriaClient {
 
   async connect(): Promise<void> {
     try {
-      const ai = getGeminiClient();
+      const apiKey = getApiKey();
+      if (!apiKey) throw new Error('API key not set');
+
+      // Lyria RealTime は v1alpha のみ対応のため専用クライアントを使用
+      const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion: 'v1alpha' } });
       this.audioCtx = new AudioContext({ sampleRate: 48000 });
+
+      // @google/genai の WebSocket URL 二重スラッシュバグ回避
+      // TODO: @google/genai のバグ修正後に削除
+      const apiClient = (ai as any).live?.music?.apiClient;
+      if (apiClient && typeof apiClient.getWebsocketBaseUrl === 'function') {
+        const original = apiClient.getWebsocketBaseUrl.bind(apiClient);
+        apiClient.getWebsocketBaseUrl = () => {
+          const url: string = original();
+          return url.endsWith('/') ? url.slice(0, -1) : url;
+        };
+      }
 
       this.session = await (ai as any).live.music.connect({
         model: 'models/lyria-realtime-exp',
@@ -37,7 +53,12 @@ export class LyriaClient {
             this.isConnected = true;
             this.setMoodBGM(this.currentMood);
           },
-          onerror: (e: any) => console.warn('[Lyria] エラー:', e),
+          onerror: (e: any) => {
+            const detail = e instanceof Event
+              ? `type=${e.type}, url=${(e.target as WebSocket)?.url ?? 'unknown'}`
+              : String(e);
+            console.warn('[Lyria] WebSocket エラー:', detail);
+          },
           onclose: () => {
             this.isConnected = false;
           },
