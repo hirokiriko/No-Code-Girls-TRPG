@@ -34,11 +34,11 @@ export function ChatPanel({
   };
 
   return (
-    <div className={`flex-[0_0_auto] max-h-[45vh] flex flex-col bg-base/92 backdrop-blur-md border-t transition-colors duration-500 ${
+    <div className={`flex-1 min-h-0 flex flex-col bg-base/92 backdrop-blur-md border-t transition-colors duration-500 ${
       isAwakened ? 'border-bright-gold/15' : 'border-wisteria/10'
     }`}>
       {/* Log Area */}
-      <div className="flex-1 overflow-y-auto p-2 px-4 min-h-[100px] max-h-[180px] space-y-1.5">
+      <div className="flex-1 overflow-y-auto p-2 px-4 min-h-0 space-y-1.5">
         {chatHistory.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-muted space-y-2 py-4">
             <Sparkles className="w-6 h-6 opacity-20" />

@@ -29,6 +29,7 @@ export function useGameState() {
   const [turnCount, setTurnCount] = useState(1);
   const [isAwakeningFlash, setIsAwakeningFlash] = useState(false);
   const [awakeningMessage, setAwakeningMessage] = useState<string | null>(null);
+  const [sceneImageUrl, setSceneImageUrl] = useState<string | null>(null);
   const hasAwakened = useRef(false);
   const gameStateRef = useRef(gameState);
 
@@ -59,5 +60,7 @@ export function useGameState() {
     isAwakened: mood === 'awakened',
     awakeningMessage,
     setAwakeningMessage,
+    sceneImageUrl,
+    setSceneImageUrl,
   };
 }

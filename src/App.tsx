@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Terminal } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useChat } from './hooks/useChat';
 import { useSpeech } from './hooks/useSpeech';
 import { useDice } from './hooks/useDice';
+import { useLyriaBGM } from './hooks/useLyriaBGM';
 import { ScenePanel } from './components/ScenePanel';
 import { CharacterPanel } from './components/CharacterPanel';
 import { ChatPanel } from './components/ChatPanel';
@@ -12,6 +13,7 @@ import { DevPanel } from './components/DevPanel';
 import { AnimatedOverlay } from './components/AnimatedOverlay';
 import { ApiKeyScreen } from './components/ApiKeyScreen';
 import { getApiKey, setApiKey } from './services/geminiClient';
+import { generateSceneImage } from './services/imagenClient';
 
 export default function App() {
   const [hasApiKey, setHasApiKey] = useState(() => !!getApiKey());
@@ -38,7 +40,11 @@ function Game() {
     turnCount, setTurnCount, isAwakeningFlash,
     gameStateRef, isAwakened,
     awakeningMessage, setAwakeningMessage,
+    sceneImageUrl, setSceneImageUrl,
   } = useGameState();
+
+  // Lyria RealTime BGM — mood に追従
+  useLyriaBGM({ mood });
 
   const sendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
   const needsRollRef = useRef<(needs: boolean) => void>(() => {});
@@ -49,6 +55,12 @@ function Game() {
     mood,
   });
 
+  // シーン変化時に Imagen 4 で背景画像を生成
+  const handleSceneChange = useCallback(async (scene: string, sceneType: string) => {
+    const url = await generateSceneImage(scene, sceneType, mood);
+    if (url) setSceneImageUrl(url);
+  }, [mood, setSceneImageUrl]);
+
   const chat = useChat({
     gameStateRef,
     mood,
@@ -58,10 +70,11 @@ function Game() {
     setTurnCount,
     setNeedsRoll: (needs: boolean) => needsRollRef.current(needs),
     speak: speech.speak,
+    onSceneChange: handleSceneChange,
   });
 
   const dice = useDice((diceVal: number) => {
-    chat.handleSendMessage("", diceVal);
+    chat.handleSendMessage('', diceVal);
   });
 
   sendMessageRef.current = chat.handleSendMessage;
@@ -78,8 +91,12 @@ function Game() {
 
   return (
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
-      <div className="flex-1 flex flex-row overflow-hidden border-b border-wisteria/10">
-        <ScenePanel sceneType={gameState.sceneType} scene={gameState.scene} />
+      <div className="h-[200px] md:h-[280px] shrink-0 flex flex-row overflow-hidden border-b border-wisteria/10">
+        <ScenePanel
+          sceneType={gameState.sceneType}
+          scene={gameState.scene}
+          generatedImageUrl={sceneImageUrl}
+        />
         <CharacterPanel mood={mood} gameState={gameState} isAwakened={isAwakened} />
       </div>
 

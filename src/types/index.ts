@@ -59,14 +59,10 @@ export interface StateUpdate {
 }
 
 export interface DMResponse {
+  say: string;
   state_update: StateUpdate;
   request_roll: boolean;
   roll_type: string | null;
   mode: Mood;
   next_prompt: string;
-}
-
-export interface ParsedDMResponse {
-  sayText: string;
-  data: DMResponse | null;
 }

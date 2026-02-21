@@ -1,17 +1,44 @@
-import { SCENE_GRADIENTS, SCENE_ACCENTS } from '../constants';
+import { useMemo } from 'react';
+import { SCENE_GRADIENTS, SCENE_ACCENTS, SCENE_BACKGROUNDS } from '../constants';
 import type { GameState } from '../types';
 
 interface ScenePanelProps {
   sceneType: GameState['sceneType'];
   scene: string;
+  /** Imagen 4 で動的生成された背景画像 URL */
+  generatedImageUrl?: string | null;
 }
 
-export function ScenePanel({ sceneType, scene }: ScenePanelProps) {
+function pickSceneImage(sceneType: GameState['sceneType'], scene: string): string | null {
+  const list = SCENE_BACKGROUNDS[sceneType];
+  if (!list?.length) return null;
+  let n = 0;
+  for (let i = 0; i < scene.length; i++) n = (n * 31 + scene.charCodeAt(i)) >>> 0;
+  const filename = list[n % list.length];
+  const base = import.meta.env.BASE_URL || '/';
+  return `${base}backgrounds/${sceneType}/${encodeURIComponent(filename)}`;
+}
+
+export function ScenePanel({ sceneType, scene, generatedImageUrl }: ScenePanelProps) {
   const safeSceneType = SCENE_GRADIENTS[sceneType] ? sceneType : 'shibuya';
+  const staticBgUrl = useMemo(() => pickSceneImage(safeSceneType, scene), [safeSceneType, scene]);
+  // Imagen 4 生成画像を優先し、なければ静的画像にフォールバック
+  const activeBgUrl = generatedImageUrl ?? staticBgUrl;
   return (
-    <div className="flex-[1_1_60%] relative overflow-hidden rounded-tl-[4px]">
-      {/* Background Gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${SCENE_GRADIENTS[safeSceneType]} transition-colors duration-1000`} />
+    <div className="flex-1 md:w-[360px] lg:w-[480px] md:shrink-0 md:flex-none relative overflow-hidden rounded-tl-[4px]">
+      {/* Background Image (when available) */}
+      {activeBgUrl && (
+        <div
+          className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
+          style={{ backgroundImage: `url(${activeBgUrl})` }}
+          role="img"
+          aria-hidden
+        />
+      )}
+      {/* Gradient overlay for readability + fallback when no image */}
+      <div
+        className={`absolute inset-0 transition-colors duration-1000 ${activeBgUrl ? 'bg-gradient-to-br from-black/60 via-black/40 to-black/70' : `bg-gradient-to-br ${SCENE_GRADIENTS[safeSceneType]}`}`}
+      />
 
       {/* Asanoha Pattern */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none">

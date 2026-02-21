@@ -28,13 +28,16 @@ export const SYSTEM_PROMPT = `あなたはTRPGのダンジョンマスター（D
 - 道中の障害物（人混み、迷路のような地下道、信号待ち等）でダイスロールを要求する。
 - sync_delta, evolution_deltaは 5〜15 の範囲で積極的に付与し、成長を促進する。
 
-あなたの返答は必ず以下の2部構成にしてください。
-SAY: （ここにDMの台詞。自然文）
-JSON: {"state_update":{"scene":"...","sceneType":"shibuya|shibuya_stream","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
-
-modeは "normal", "thinking", "battle", "success", "awakened" のいずれか。
-sync_delta, evolution_deltaは成長ゲージの増分（5〜15程度）。積極的に付与すること。
-memory_addは重要な出来事を10文字程度で記録。`;
+■ 返答仕様
+JSONで返答すること。フィールドの意味：
+- say: ノアの台詞（自然文・短文テンポ）
+- state_update.scene: 現在地の説明文
+- state_update.sceneType: "shibuya" か "shibuya_stream"
+- state_update.sync_delta / evolution_delta: 成長ゲージの増分（5〜15程度）。積極的に付与すること。
+- state_update.memory_add: 重要な出来事を10文字程度で記録（icon は絵文字1文字）
+- request_roll: ダイスロールが必要な場合 true
+- mode: "normal" | "thinking" | "battle" | "success" | "awakened"
+- next_prompt: 次のターンへの促し（短文）`;
 
 export const MOOD_CONFIG: Record<Mood, MoodConfig> = {
   normal: { label: '平常', kanji: '静', color: '#8b6cc1', desc: '穏やかな状態' },
@@ -53,6 +56,42 @@ export const SCENE_ACCENTS: Record<SceneType, string> = {
   shibuya: '#c9a84c',
   shibuya_stream: '#60a5fa'
 };
+
+/** シーン別背景画像アセット（public/backgrounds/{sceneType}/ に配置） */
+export const SCENE_BACKGROUNDS: Record<SceneType, string[]> = {
+  shibuya: ['shibuya_01.png', 'shibuya_02.png', 'shibuya_03.png', 'shibuya_04.png', 'shibuya_05.png'],
+  shibuya_stream: ['shibuya_stream_01.png', 'shibuya_stream_02.png', 'shibuya_stream_03.png', 'shibuya_stream_04.png'],
+};
+
+/** キャラクター動画アセット（public/assets/character/ に配置）。移動・エモート・アニメーション用。 */
+export const CHARACTER_VIDEOS = {
+  movement: ['movement_01.mp4'],
+  emote: ['emote_01.mp4', 'emote_02.mp4'],
+  animation: ['animation_01.mp4'],
+} as const;
+
+/** キャラ動画のフルURLを取得。base は import.meta.env.BASE_URL を渡す。 */
+export function getCharacterVideoUrl(
+  category: keyof typeof CHARACTER_VIDEOS,
+  index: number = 0,
+  base: string = import.meta.env.BASE_URL ?? '/'
+): string {
+  const list = CHARACTER_VIDEOS[category];
+  const file = list[Math.min(index, list.length - 1)];
+  return `${base.replace(/\/$/, '')}/assets/character/${file}`;
+}
+
+/** TYOITETU キャラクター画像アセット（public/assets/character/tyoitetu/ に配置） */
+export const TYOITETU_IMAGES = [
+  'tyoitetu_01.png', 'tyoitetu_02.png', 'tyoitetu_03.png', 'tyoitetu_04.png',
+  'tyoitetu_05.png', 'tyoitetu_06.png', 'tyoitetu_07.png', 'tyoitetu_08.png',
+] as const;
+
+/** TYOITETU 画像のフルURLを取得。index は 0〜7。 */
+export function getTyoitetuImageUrl(index: number = 0, base: string = import.meta.env.BASE_URL ?? '/'): string {
+  const i = Math.max(0, Math.min(index, TYOITETU_IMAGES.length - 1));
+  return `${base.replace(/\/$/, '')}/assets/character/tyoitetu/${TYOITETU_IMAGES[i]}`;
+}
 
 // Motion バリアント定数
 export const overlayVariants: Variants = {

@@ -11,6 +11,9 @@ All notable changes to the **No-Code Girls TRPG** project will be documented in 
 - **Wave 4**: Split UI into 6 components (`ScenePanel`, `CharacterPanel`, `ChatPanel`, `DiceOverlay`, `AnimatedOverlay`, `DevPanel`)
 - **Wave 5**: Final cleanup — App.tsx reduced to ~80 line orchestration layer, added ESLint/tsconfig strict mode/.editorconfig
 
+### Added
+- Scene background images: extracted ZIP to `public/backgrounds/shibuya` and `public/backgrounds/shibuya_stream`; ScenePanel shows a photo per scene with gradient overlay for readability.
+
 ### Improved
 - Singleton Gemini API client (was re-instantiated every request)
 - Bracket-depth JSON parser replacing greedy regex

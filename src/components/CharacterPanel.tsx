@@ -54,7 +54,7 @@ interface CharacterPanelProps {
 export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelProps) {
   const [imgError, setImgError] = useState(false);
   return (
-    <div className="w-[200px] min-w-[180px] max-w-[220px] flex flex-col bg-base/95 border-l border-wisteria/10 rounded-tr-[4px] overflow-hidden">
+    <div className="flex-1 min-w-[180px] flex flex-col bg-base/95 border-l border-wisteria/10 rounded-tr-[4px] overflow-hidden">
       {/* Section A: Portrait */}
       <div className="p-4 px-3.5 pb-3 flex flex-col items-center border-b border-wisteria/10">
         <div

@@ -1,8 +1,7 @@
 // src/hooks/useChat.ts
 import { useState, useRef, type RefObject, type Dispatch, type SetStateAction } from 'react';
 import type { Mood, GameState, ChatMessage } from '../types';
-import { SYSTEM_PROMPT } from '../constants';
-import { getGeminiClient, parseGeminiResponse } from '../services/geminiClient';
+import { generateDMResponse } from '../services/geminiClient';
 import { applyStateUpdate } from './useGameState';
 
 interface UseChatParams {
@@ -14,10 +13,11 @@ interface UseChatParams {
   setTurnCount: Dispatch<SetStateAction<number>>;
   setNeedsRoll: (needs: boolean) => void;
   speak: (text: string) => void;
+  onSceneChange?: (scene: string, sceneType: string) => void;
 }
 
 export function useChat(params: UseChatParams) {
-  const { gameStateRef, mood, turnCount, setGameState, setMood, setTurnCount, setNeedsRoll, speak } = params;
+  const { gameStateRef, mood, turnCount, setGameState, setMood, setTurnCount, setNeedsRoll, speak, onSceneChange } = params;
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     { id: 'init-dm', role: 'dm', text: 'ここが渋谷…。人の流れが多すぎて、まだ解析が追いつかない…' }
   ]);
@@ -46,22 +46,24 @@ export function useChat(params: UseChatParams) {
     };
 
     try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: JSON.stringify(payload),
-        config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.7 }
-      });
+      const result = await generateDMResponse(payload, mood);
 
-      const { sayText, data: parsedJson } = parseGeminiResponse(response.text || "");
+      const isAwakened = mood === 'awakened' || result.mode === 'awakened';
+      setChatHistory(prev => [...prev, { id: Date.now().toString() + '-dm', role: 'dm', text: result.say, isAwakened }]);
 
-      const isAwakened = mood === 'awakened' || (parsedJson?.mode === 'awakened');
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-dm", role: 'dm', text: sayText, isAwakened }]);
+      setGameState(prev => applyStateUpdate(prev, result.state_update, turnCount));
+      setNeedsRoll(result.request_roll);
+      if (result.mode) setMood(result.mode);
 
-      if (parsedJson) {
-        setGameState(prev => applyStateUpdate(prev, parsedJson.state_update, turnCount));
-        setNeedsRoll(!!parsedJson.request_roll);
-        if (parsedJson.mode) setMood(parsedJson.mode);
+      // シーン変化検出 → Imagen 4 トリガー
+      if (onSceneChange && result.state_update.scene) {
+        const currentScene = gameStateRef.current.scene;
+        if (currentScene !== result.state_update.scene) {
+          onSceneChange(
+            result.state_update.scene,
+            result.state_update.sceneType ?? gameStateRef.current.sceneType
+          );
+        }
       }
 
       // キーワード検出ボーナス
@@ -90,11 +92,11 @@ export function useChat(params: UseChatParams) {
       }
 
       setTurnCount(prev => prev + 1);
-      speak(sayText);
+      speak(result.say);
 
     } catch (error) {
       console.error(error);
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-err", role: 'dm', text: "通信エラー。HTTP召喚に失敗。" }]);
+      setChatHistory(prev => [...prev, { id: Date.now().toString() + '-err', role: 'dm', text: 'エラー発生。HTTP召喚に失敗。' }]);
       setMood('normal');
     }
   };
@@ -102,7 +104,7 @@ export function useChat(params: UseChatParams) {
   handleSendMessageRef.current = handleSendMessage;
 
   const handleCameraDeclare = () => {
-    const item = prompt("カメラに映したアイテムを宣言してください（例：ペンを剣とする）");
+    const item = prompt('カメラに映したアイテムを宣言してください（例：ペンを剣とする）');
     if (item) {
       handleSendMessage(`[カメラ宣言: ${item}]`);
     }

@@ -1,6 +1,7 @@
 // src/hooks/useSpeech.ts
 import { useState, useEffect, useRef } from 'react';
 import type { Mood } from '../types';
+import { speakWithGeminiTTS } from '../services/ttsClient';
 
 interface UseSpeechParams {
   onTranscript: (text: string) => void;
@@ -12,6 +13,8 @@ export function useSpeech(params: UseSpeechParams) {
   const { onTranscript, setMood, mood } = params;
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const moodRef = useRef(mood);
+  moodRef.current = mood;
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -31,15 +34,12 @@ export function useSpeech(params: UseSpeechParams) {
   }, []);
 
   const speak = (text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.onend = () => {
-      if (mood === 'success' || mood === 'awakened') return;
-      setMood('normal');
-    };
-    window.speechSynthesis.speak(utterance);
+    const currentMood = moodRef.current;
+    speakWithGeminiTTS(text, currentMood).then(() => {
+      if (currentMood !== 'success' && currentMood !== 'awakened') {
+        setMood('normal');
+      }
+    });
   };
 
   const toggleRecording = () => {

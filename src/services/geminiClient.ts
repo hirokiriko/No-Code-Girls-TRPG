@@ -1,6 +1,8 @@
 // src/services/geminiClient.ts
-import { GoogleGenAI } from '@google/genai';
-import type { DMResponse, ParsedDMResponse } from '../types';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { z } from 'zod';
+import type { Mood, GamePayload } from '../types';
+import { SYSTEM_PROMPT } from '../constants';
 
 const STORAGE_KEY = 'gemini_api_key';
 
@@ -27,42 +29,54 @@ export function getGeminiClient(): GoogleGenAI {
   return client;
 }
 
-/**
- * Gemini レスポンスを SAY/JSON に分離する純粋関数
- */
-export function parseGeminiResponse(rawText: string): ParsedDMResponse {
-  const sayMatch = rawText.match(/SAY:\s*([\s\S]*?)(?=\nJSON:|$)/);
-  const sayText = sayMatch ? sayMatch[1].trim() : rawText.trim();
+// Zod スキーマ（Structured Output 用）
+const stateUpdateSchema = z.object({
+  scene: z.string().optional(),
+  sceneType: z.enum(['shibuya', 'shibuya_stream']).optional(),
+  hp: z.number().optional(),
+  sync_delta: z.number().optional(),
+  evolution_delta: z.number().optional(),
+  inventory_add: z.array(z.string()).optional(),
+  inventory_remove: z.array(z.string()).optional(),
+  flags_set: z.array(z.string()).optional(),
+  memory_add: z.object({ text: z.string(), icon: z.string().optional() }).optional(),
+});
 
-  const jsonText = extractJsonBlock(rawText);
-  let data: DMResponse | null = null;
-  if (jsonText) {
-    try {
-      data = JSON.parse(jsonText) as DMResponse;
-    } catch {
-      // JSON パース失敗時は SAY のみで続行
-    }
+export const gameResponseSchema = z.object({
+  say: z.string(),
+  state_update: stateUpdateSchema,
+  request_roll: z.boolean(),
+  roll_type: z.string().nullable(),
+  mode: z.enum(['normal', 'thinking', 'battle', 'success', 'awakened']),
+  next_prompt: z.string(),
+});
+
+export type GameResponse = z.infer<typeof gameResponseSchema>;
+
+/** mood に応じた Thinking Level */
+function moodToThinkingLevel(mood: Mood): ThinkingLevel {
+  switch (mood) {
+    case 'battle': return ThinkingLevel.MEDIUM;
+    case 'awakened': return ThinkingLevel.HIGH;
+    default: return ThinkingLevel.LOW;
   }
-
-  return { sayText, data };
 }
 
-/**
- * 括弧深度追跡でJSON ブロックを抽出（正規表現の貪欲マッチ問題を回避）
- */
-function extractJsonBlock(text: string): string | null {
-  const marker = text.indexOf('JSON:');
-  if (marker === -1) return null;
+/** DM レスポンスを Structured Output で取得 */
+export async function generateDMResponse(payload: GamePayload, mood: Mood): Promise<GameResponse> {
+  const ai = getGeminiClient();
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: JSON.stringify(payload),
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      temperature: 0.7,
+      responseMimeType: 'application/json',
+      responseJsonSchema: z.toJSONSchema(gameResponseSchema),
+      thinkingConfig: { thinkingLevel: moodToThinkingLevel(mood) },
+    },
+  });
 
-  const after = text.slice(marker + 5);
-  const start = after.indexOf('{');
-  if (start === -1) return null;
-
-  let depth = 0;
-  for (let i = start; i < after.length; i++) {
-    if (after[i] === '{') depth++;
-    else if (after[i] === '}') depth--;
-    if (depth === 0) return after.slice(start, i + 1);
-  }
-  return null;
+  const text = response.text ?? '{}';
+  return gameResponseSchema.parse(JSON.parse(text));
 }
