@@ -1,6 +1,16 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import type { Mood, GameState } from '../types';
 import { MOOD_CONFIG } from '../constants';
+
+const BASE_URL = import.meta.env.BASE_URL;
+const MOOD_IMAGES: Record<Mood, { src: string; fallback: string }> = {
+  normal: { src: `${BASE_URL}normal.png`, fallback: '👩‍💻' },
+  thinking: { src: `${BASE_URL}thinking.png`, fallback: '🧐' },
+  battle: { src: `${BASE_URL}battle.png`, fallback: '⚔️' },
+  success: { src: `${BASE_URL}success.png`, fallback: '✨' },
+  awakened: { src: `${BASE_URL}awakened.png`, fallback: '🌟' },
+};
 
 interface GaugeBarProps {
   label: string;
@@ -42,6 +52,7 @@ interface CharacterPanelProps {
 }
 
 export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelProps) {
+  const [imgError, setImgError] = useState(false);
   return (
     <div className="w-[200px] min-w-[180px] max-w-[220px] flex flex-col bg-base/95 border-l border-wisteria/10 rounded-tr-[4px] overflow-hidden">
       {/* Section A: Portrait */}
@@ -55,12 +66,17 @@ export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelPr
           <div className="absolute top-2 right-2 font-serif text-[40px] opacity-20 pointer-events-none" style={{ color: MOOD_CONFIG[mood].color }}>
             {MOOD_CONFIG[mood].kanji}
           </div>
-          <div className="text-[42px] z-[1]">
-            {mood === 'normal' && '👩‍💻'}
-            {mood === 'thinking' && '🧐'}
-            {mood === 'battle' && '⚔️'}
-            {mood === 'success' && '✨'}
-            {mood === 'awakened' && '🌟'}
+          <div className="z-[1]">
+            {imgError ? (
+              <span className="text-[42px]">{MOOD_IMAGES[mood].fallback}</span>
+            ) : (
+              <img
+                src={MOOD_IMAGES[mood].src}
+                alt={MOOD_CONFIG[mood].label}
+                className="w-[80px] h-[100px] object-cover"
+                onError={() => setImgError(true)}
+              />
+            )}
           </div>
           <div className="font-mono text-[7px] tracking-[3px] opacity-60 mt-2" style={{ color: MOOD_CONFIG[mood].color }}>
             {isAwakened ? 'AWAKENED' : 'IMAGE SLOT'}

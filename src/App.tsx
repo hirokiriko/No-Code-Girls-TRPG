@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Terminal } from 'lucide-react';
 import { useGameState } from './hooks/useGameState';
 import { useChat } from './hooks/useChat';
@@ -18,6 +18,7 @@ export default function App() {
     gameState, setGameState, mood, setMood,
     turnCount, setTurnCount, isAwakeningFlash,
     gameStateRef, isAwakened,
+    awakeningMessage, setAwakeningMessage,
   } = useGameState();
 
   const sendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
@@ -46,6 +47,15 @@ export default function App() {
 
   sendMessageRef.current = chat.handleSendMessage;
   needsRollRef.current = dice.setNeedsRoll;
+
+  // 覚醒メッセージをチャットに注入
+  useEffect(() => {
+    if (awakeningMessage) {
+      chat.setChatHistory(prev => [...prev, { id: `awakening-${Date.now()}`, role: 'dm', text: awakeningMessage, isAwakened: true }]);
+      speech.speak(awakeningMessage);
+      setAwakeningMessage(null);
+    }
+  }, [awakeningMessage]);
 
   return (
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">

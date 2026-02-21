@@ -28,13 +28,17 @@ export function useGameState() {
   const [mood, setMood] = useState<Mood>('normal');
   const [turnCount, setTurnCount] = useState(1);
   const [isAwakeningFlash, setIsAwakeningFlash] = useState(false);
+  const [awakeningMessage, setAwakeningMessage] = useState<string | null>(null);
+  const hasAwakened = useRef(false);
   const gameStateRef = useRef(gameState);
 
   useEffect(() => {
     gameStateRef.current = gameState;
-    if (isAwakeningReady(gameState.sync, gameState.evolution) && mood !== 'awakened') {
+    if (isAwakeningReady(gameState.sync, gameState.evolution) && mood !== 'awakened' && !hasAwakened.current) {
+      hasAwakened.current = true;
       setIsAwakeningFlash(true);
       setTimeout(() => setIsAwakeningFlash(false), 600);
+      setAwakeningMessage('「同期率閾値突破。進化段階を更新します。」');
     }
   }, [gameState]);
 
@@ -53,5 +57,7 @@ export function useGameState() {
     gameStateRef,
     updateGameState,
     isAwakened: mood === 'awakened',
+    awakeningMessage,
+    setAwakeningMessage,
   };
 }

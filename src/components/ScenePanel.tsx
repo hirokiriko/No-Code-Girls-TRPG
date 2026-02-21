@@ -7,10 +7,11 @@ interface ScenePanelProps {
 }
 
 export function ScenePanel({ sceneType, scene }: ScenePanelProps) {
+  const safeSceneType = SCENE_GRADIENTS[sceneType] ? sceneType : 'shibuya';
   return (
     <div className="flex-[1_1_60%] relative overflow-hidden rounded-tl-[4px]">
       {/* Background Gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${SCENE_GRADIENTS[sceneType]} transition-colors duration-1000`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${SCENE_GRADIENTS[safeSceneType]} transition-colors duration-1000`} />
 
       {/* Asanoha Pattern */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
@@ -24,21 +25,31 @@ export function ScenePanel({ sceneType, scene }: ScenePanelProps) {
 
       {/* Floating Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <span className="absolute left-[15%] top-[20%] text-[20px] opacity-40 animate-float-0 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">✨</span>
-        <span className="absolute left-[45%] top-[35%] text-[14px] opacity-50 animate-float-1 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">💠</span>
-        <span className="absolute left-[75%] top-[50%] text-[16px] opacity-60 animate-float-2 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">📜</span>
+        {safeSceneType === 'shibuya_stream' ? (
+          <>
+            <span className="absolute left-[15%] top-[20%] text-[20px] opacity-40 animate-float-0 drop-shadow-[0_0_8px_rgba(96,165,250,0.3)]">🌊</span>
+            <span className="absolute left-[45%] top-[35%] text-[14px] opacity-50 animate-float-1 drop-shadow-[0_0_8px_rgba(96,165,250,0.3)]">💎</span>
+            <span className="absolute left-[75%] top-[50%] text-[16px] opacity-60 animate-float-2 drop-shadow-[0_0_8px_rgba(96,165,250,0.3)]">⚡</span>
+          </>
+        ) : (
+          <>
+            <span className="absolute left-[15%] top-[20%] text-[20px] opacity-40 animate-float-0 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">🏙️</span>
+            <span className="absolute left-[45%] top-[35%] text-[14px] opacity-50 animate-float-1 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">🚦</span>
+            <span className="absolute left-[75%] top-[50%] text-[16px] opacity-60 animate-float-2 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">📱</span>
+          </>
+        )}
       </div>
 
       {/* Atmosphere Glow */}
       <div
         className="absolute w-[60%] h-[60%] top-[20%] left-[20%] rounded-full animate-breathe pointer-events-none"
-        style={{ background: `radial-gradient(circle, ${SCENE_ACCENTS[sceneType]}11, transparent 70%)` }}
+        style={{ background: `radial-gradient(circle, ${SCENE_ACCENTS[safeSceneType]}11, transparent 70%)` }}
       />
 
       {/* Scene Label */}
       <div className="absolute top-3 left-3.5 z-[2]">
-        <div className="font-mono text-[8px] tracking-[3px] opacity-70" style={{ color: SCENE_ACCENTS[sceneType] }}>SCENE</div>
-        <div className="font-serif text-base tracking-[2px] text-porcelain" style={{ textShadow: `0 0 20px ${SCENE_ACCENTS[sceneType]}44` }}>
+        <div className="font-mono text-[8px] tracking-[3px] opacity-70" style={{ color: SCENE_ACCENTS[safeSceneType] }}>SCENE</div>
+        <div className="font-serif text-base tracking-[2px] text-porcelain" style={{ textShadow: `0 0 20px ${SCENE_ACCENTS[safeSceneType]}44` }}>
           {scene.split('。')[0]}
         </div>
         <div className="font-sans text-[9px] text-muted mt-0.5">{scene.split('。')[1] || ''}</div>
@@ -47,7 +58,7 @@ export function ScenePanel({ sceneType, scene }: ScenePanelProps) {
       {/* Bottom Border Decoration */}
       <div
         className="absolute bottom-0 left-0 right-0 h-[1px]"
-        style={{ background: `linear-gradient(90deg, transparent, ${SCENE_ACCENTS[sceneType]}33, transparent)` }}
+        style={{ background: `linear-gradient(90deg, transparent, ${SCENE_ACCENTS[safeSceneType]}33, transparent)` }}
       />
 
     </div>

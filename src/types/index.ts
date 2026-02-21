@@ -1,6 +1,6 @@
 // src/types/index.ts
 
-export type SceneType = 'shrine' | 'forest' | 'sea';
+export type SceneType = 'shibuya' | 'shibuya_stream';
 export type Mood = 'normal' | 'thinking' | 'battle' | 'success' | 'awakened';
 
 export interface MemoryEntry {

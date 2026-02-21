@@ -3,15 +3,15 @@ import type { GameState, Mood, MoodConfig, SceneType } from '../types';
 import type { Variants } from 'motion/react';
 
 export const INITIAL_STATE: GameState = {
-  scene: "電脳神社の鳥居の前。デジタルな風が吹き抜けている。",
-  sceneType: 'shrine',
+  scene: "渋谷駅前。スクランブル交差点の人波が視界を埋め尽くしている。",
+  sceneType: 'shibuya',
   hp: 10,
-  sync: 20,
-  evolution: 15,
+  sync: 10,
+  evolution: 10,
   inventory: ["スマホ"],
   flags: [],
   memory: [
-    { text: "旅の始まり", turn: 0, icon: "⛩️" }
+    { text: "渋谷に到着", turn: 0, icon: "🏙️" }
   ]
 };
 
@@ -21,12 +21,19 @@ export const SYSTEM_PROMPT = `あなたはTRPGのダンジョンマスター（D
 毎ターン必ず「ノーコード文脈の技名/比喩」を1つ入れる（例：IF分岐、ワークフロー起動、ブロック接続、HTTP召喚 等）。
 長文の説教はしない。会話はテンポ重視。医療/メンタル/栄養などの助言はしない。
 
+■ シナリオ概要
+舞台は渋谷。プレイヤーとノアは渋谷駅前からスタートし、渋谷ストリームを目指す冒険をしている。
+- 渋谷の雑踏、スクランブル交差点、路地裏などを描写する。
+- プレイヤーが「渋谷ストリーム」に向かう意志を示したらsceneTypeを"shibuya_stream"に変更する。
+- 道中の障害物（人混み、迷路のような地下道、信号待ち等）でダイスロールを要求する。
+- sync_delta, evolution_deltaは 5〜15 の範囲で積極的に付与し、成長を促進する。
+
 あなたの返答は必ず以下の2部構成にしてください。
 SAY: （ここにDMの台詞。自然文）
-JSON: {"state_update":{"scene":"...","sceneType":"shrine|forest|sea","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
+JSON: {"state_update":{"scene":"...","sceneType":"shibuya|shibuya_stream","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
 
 modeは "normal", "thinking", "battle", "success", "awakened" のいずれか。
-sync_delta, evolution_deltaは成長ゲージの増分（0〜10程度）。
+sync_delta, evolution_deltaは成長ゲージの増分（5〜15程度）。積極的に付与すること。
 memory_addは重要な出来事を10文字程度で記録。`;
 
 export const MOOD_CONFIG: Record<Mood, MoodConfig> = {
@@ -38,15 +45,13 @@ export const MOOD_CONFIG: Record<Mood, MoodConfig> = {
 };
 
 export const SCENE_GRADIENTS: Record<SceneType, string> = {
-  shrine: 'from-[#0c0a14] via-[#1a1028] to-[#12181f]',
-  forest: 'from-[#0a0f0c] via-[#0f1a14] to-[#0c1610]',
-  sea: 'from-[#0a0c14] via-[#0f1528] to-[#0c1220]'
+  shibuya: 'from-[#0c0a1a] via-[#1a0f2e] to-[#14101f]',
+  shibuya_stream: 'from-[#0a0e1a] via-[#0f1a2e] to-[#0c1428]'
 };
 
 export const SCENE_ACCENTS: Record<SceneType, string> = {
-  shrine: '#8b6cc1',
-  forest: '#4ade80',
-  sea: '#c9a84c'
+  shibuya: '#c9a84c',
+  shibuya_stream: '#60a5fa'
 };
 
 // Motion バリアント定数
