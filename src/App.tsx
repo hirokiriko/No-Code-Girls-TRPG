@@ -20,7 +20,6 @@ export default function App() {
     gameStateRef, isAwakened,
   } = useGameState();
 
-  // Refs to break circular deps: speech → chat, chat → dice
   const sendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
   const needsRollRef = useRef<(needs: boolean) => void>(() => {});
 
@@ -45,39 +44,30 @@ export default function App() {
     chat.handleSendMessage("", diceVal);
   });
 
-  // Sync refs after all hooks are initialized
   sendMessageRef.current = chat.handleSendMessage;
   needsRollRef.current = dice.setNeedsRoll;
 
-  const { chatHistory, handleSendMessage, handleCameraDeclare } = chat;
-  const { isRecording, toggleRecording } = speech;
-  const { needsRoll, rollResult, handleRollDice } = dice;
-
   return (
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
-      {/* Upper Section */}
       <div className="flex-1 flex flex-row overflow-hidden border-b border-wisteria/10">
         <ScenePanel sceneType={gameState.sceneType} scene={gameState.scene} />
         <CharacterPanel mood={mood} gameState={gameState} isAwakened={isAwakened} />
       </div>
 
-      {/* Chat Panel */}
       <ChatPanel
-        chatHistory={chatHistory}
+        chatHistory={chat.chatHistory}
         isAwakened={isAwakened}
         mood={mood}
-        needsRoll={needsRoll}
-        isRecording={isRecording}
-        onSendMessage={handleSendMessage}
-        onToggleRecording={toggleRecording}
-        onRollDice={handleRollDice}
-        onCameraDeclare={handleCameraDeclare}
+        needsRoll={dice.needsRoll}
+        isRecording={speech.isRecording}
+        onSendMessage={chat.handleSendMessage}
+        onToggleRecording={speech.toggleRecording}
+        onRollDice={dice.handleRollDice}
+        onCameraDeclare={chat.handleCameraDeclare}
       />
 
-      {/* Dice Overlay (inside scene area) */}
-      <DiceOverlay rollResult={rollResult} />
+      <DiceOverlay rollResult={dice.rollResult} />
 
-      {/* Overlays */}
       <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSI0Ii8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')] bg-[length:128px_128px]" />
 
       <AnimatedOverlay
@@ -85,7 +75,6 @@ export default function App() {
         className="absolute inset-0 z-[100] pointer-events-none bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.9),rgba(201,168,76,0.6),transparent)]"
       />
 
-      {/* Dev Panel Button */}
       <button
         onClick={() => setShowDevPanel(true)}
         className="fixed top-2 right-2 z-[100] p-2 bg-base/40 hover:bg-base/60 rounded-full text-muted hover:text-porcelain transition-colors"
