@@ -204,7 +204,7 @@ const response = await ai.models.generateContent({
 // response.candidates[0].content.parts[0].inlineData (audio/pcm)
 ```
 
-**TRPG活用**: DM ノアのセリフ読み上げ。Web Speech API の上位互換。感情表現付き。
+**TRPG活用**: DM ちょいてつちゃんのセリフ読み上げ。Web Speech API の上位互換。感情表現付き。
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## 動画（MP4）
 
-ノアの移動・エモート・アニメーション用。`src/constants/index.ts` の `CHARACTER_VIDEOS` および `getCharacterVideoUrl()` で参照できます。
+ちょいてつちゃんの移動・エモート・アニメーション用。`src/constants/index.ts` の `CHARACTER_VIDEOS` および `getCharacterVideoUrl()` で参照できます。
 
 | 用途       | ファイル名        | 説明           |
 |------------|-------------------|----------------|

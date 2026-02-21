@@ -54,7 +54,7 @@ export function ChatPanel({
               className="flex flex-col"
             >
               <div className={`font-mono text-[8px] tracking-[2px] mb-0.5 ${msg.role === 'user' ? 'text-gold' : (msg.isAwakened ? 'text-bright-gold' : 'text-wisteria')}`}>
-                {msg.role === 'user' ? 'あなた ›' : (msg.isAwakened ? 'ノア ★ ›' : 'ノア ›')}
+                {msg.role === 'user' ? 'あなた ›' : (msg.isAwakened ? 'ちょいてつちゃん ★ ›' : 'ちょいてつちゃん ›')}
               </div>
               <div
                 className={`font-sans text-[12px] leading-[1.7] ${msg.isAwakened ? 'text-light-gold' : 'text-porcelain'}`}

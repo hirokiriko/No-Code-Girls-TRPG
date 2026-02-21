@@ -1,15 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import type { Mood, GameState } from '../types';
-import { MOOD_CONFIG } from '../constants';
+import { MOOD_CONFIG, getTyoitetuImageUrl } from '../constants';
 
-const BASE_URL = import.meta.env.BASE_URL;
 const MOOD_IMAGES: Record<Mood, { src: string; fallback: string }> = {
-  normal: { src: `${BASE_URL}normal.png`, fallback: '👩‍💻' },
-  thinking: { src: `${BASE_URL}thinking.png`, fallback: '🧐' },
-  battle: { src: `${BASE_URL}battle.png`, fallback: '⚔️' },
-  success: { src: `${BASE_URL}success.png`, fallback: '✨' },
-  awakened: { src: `${BASE_URL}awakened.png`, fallback: '🌟' },
+  normal: { src: getTyoitetuImageUrl(3), fallback: '👩‍💻' },
+  thinking: { src: getTyoitetuImageUrl(1), fallback: '🧐' },
+  battle: { src: getTyoitetuImageUrl(2), fallback: '⚔️' },
+  success: { src: getTyoitetuImageUrl(0), fallback: '✨' },
+  awakened: { src: getTyoitetuImageUrl(6), fallback: '🌟' },
 };
 
 interface GaugeBarProps {
@@ -53,6 +52,7 @@ interface CharacterPanelProps {
 
 export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelProps) {
   const [imgError, setImgError] = useState(false);
+  useEffect(() => setImgError(false), [mood]);
   return (
     <div className="flex-1 min-w-[180px] flex flex-col bg-base/95 border-l border-wisteria/10 rounded-tr-[4px] overflow-hidden">
       {/* Section A: Portrait */}
@@ -85,7 +85,7 @@ export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelPr
           <div className="absolute bottom-[3px] right-[3px] w-2 h-2 border-b border-r" style={{ borderColor: `${MOOD_CONFIG[mood].color}44` }} />
         </div>
         <div className="mt-2 text-center">
-          <div className="font-serif text-[14px] tracking-[4px] text-porcelain">ノア</div>
+          <div className="font-serif text-[14px] tracking-[4px] text-porcelain">ちょいてつちゃん</div>
           <div className="flex items-center justify-center gap-1.5 mt-0.5">
             <div
               className="w-[5px] h-[5px] rounded-full animate-pulse"

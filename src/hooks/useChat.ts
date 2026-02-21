@@ -68,7 +68,7 @@ export function useChat(params: UseChatParams) {
 
       // キーワード検出ボーナス
       if (text) {
-        if (/ちょいてつ|ノア/.test(text)) {
+        if (/ちょいてつ|ちょいてつちゃん/.test(text)) {
           setGameState(prev => ({ ...prev, sync: Math.min(100, prev.sync + 20) }));
         }
         if (/一緒|頼む|ついてきて|助けて/.test(text)) {
