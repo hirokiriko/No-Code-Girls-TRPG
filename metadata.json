@@ -1,0 +1,5 @@
+{
+  "name": "No-Code Girls TRPG",
+  "description": "音声で会話しながら進行するTRPGデモ。GeminiがノーコードガールズのDMとして振る舞います。",
+  "requestFramePermissions": ["microphone"]
+}
