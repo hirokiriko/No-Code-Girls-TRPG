@@ -2,6 +2,7 @@
 import { Modality } from '@google/genai';
 import type { Mood } from '../types';
 import { getGeminiClient } from './geminiClient';
+import { getLiveTTSClient, resetLiveTTSClient } from './liveTTSClient';
 
 const EMOTION_PROMPTS: Record<Mood, string> = {
   battle:   '力強く緊迫感を込めて言って',
@@ -53,8 +54,21 @@ async function playPcmBase64(base64: string): Promise<void> {
   return new Promise(resolve => { source.onended = () => resolve(); });
 }
 
-/** Gemini TTS でテキストを読み上げる。失敗時は Web Speech API にフォールバック */
+/** Gemini TTS でテキストを読み上げる。
+ *  優先順位: Live API（ストリーミング低レイテンシ）→ REST TTS → Web Speech API
+ */
 export async function speakWithGeminiTTS(text: string, mood: Mood): Promise<void> {
+  // 1. Live API（ストリーミング）を優先
+  try {
+    const liveClient = await getLiveTTSClient();
+    await liveClient.speak(text, mood);
+    return;
+  } catch (e) {
+    console.warn('[TTS] Live API 失敗、REST TTS にフォールバック:', e);
+    resetLiveTTSClient(); // 次回の speak() で再接続を試みる
+  }
+
+  // 2. REST TTS フォールバック
   try {
     const ai = getGeminiClient();
     const emotion = EMOTION_PROMPTS[mood] ?? EMOTION_PROMPTS.normal;
@@ -76,10 +90,10 @@ export async function speakWithGeminiTTS(text: string, mood: Mood): Promise<void
       return;
     }
   } catch (e) {
-    console.warn('[TTS] Gemini TTS 失敗、Web Speech にフォールバック:', e);
+    console.warn('[TTS] REST TTS 失敗、Web Speech にフォールバック:', e);
   }
 
-  // Web Speech API フォールバック
+  // 3. Web Speech API フォールバック
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
