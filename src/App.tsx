@@ -1,162 +1,54 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mic, Camera, Terminal, Sparkles, Dices } from 'lucide-react';
-import type { Mood, GameState, ChatMessage } from './types';
-import { INITIAL_STATE, SYSTEM_PROMPT, MOOD_CONFIG, SCENE_GRADIENTS, SCENE_ACCENTS } from './constants';
-import { getGeminiClient, parseGeminiResponse } from './services/geminiClient';
+import { MOOD_CONFIG, SCENE_GRADIENTS, SCENE_ACCENTS } from './constants';
+import { useGameState } from './hooks/useGameState';
+import { useDice } from './hooks/useDice';
+import { useChat } from './hooks/useChat';
+import { useSpeech } from './hooks/useSpeech';
 
 export default function App() {
-  const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [mood, setMood] = useState<Mood>('normal');
-  const [needsRoll, setNeedsRoll] = useState(false);
-  const [rollResult, setRollResult] = useState<{ value: number; success: boolean } | null>(null);
   const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [showDevPanel, setShowDevPanel] = useState(false);
-  const [turnCount, setTurnCount] = useState(1);
-  const [isAwakeningFlash, setIsAwakeningFlash] = useState(false);
-
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const gameStateRef = useRef(gameState);
-  const handleSendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
 
-  useEffect(() => {
-    gameStateRef.current = gameState;
-    if (gameState.sync > 40 && gameState.evolution > 40 && mood !== 'awakened') {
-      setIsAwakeningFlash(true);
-      setTimeout(() => setIsAwakeningFlash(false), 600);
-    }
-  }, [gameState]);
+  // Ref to break circular dependency: useSpeech/useDice → useChat
+  const sendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
+
+  const {
+    gameState, setGameState, mood, setMood,
+    turnCount, setTurnCount, isAwakeningFlash, gameStateRef, isAwakened,
+  } = useGameState();
+
+  const { speak, isRecording, toggleRecording } = useSpeech({
+    onTranscript: (text: string) => {
+      setInputText(text);
+      sendMessageRef.current(text);
+    },
+    setMood,
+    mood,
+  });
+
+  const { needsRoll, setNeedsRoll, rollResult, handleRollDice } = useDice(
+    (diceVal) => sendMessageRef.current('', diceVal),
+  );
+
+  const { chatHistory, handleSendMessage, handleCameraDeclare } = useChat({
+    gameStateRef,
+    mood,
+    turnCount,
+    setGameState,
+    setMood,
+    setTurnCount,
+    setNeedsRoll,
+    speak,
+  });
+
+  sendMessageRef.current = handleSendMessage;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
-
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'ja-JP';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInputText(transcript);
-        handleSendMessageRef.current(transcript);
-      };
-      recognition.onerror = () => setIsRecording(false);
-      recognition.onend = () => setIsRecording(false);
-      recognitionRef.current = recognition;
-    }
-  }, []);
-
-  const speak = (text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.onend = () => {
-      if (mood === 'success' || mood === 'awakened') return;
-      setMood('normal');
-    };
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleSendMessage = async (text: string, diceVal: number | null = null) => {
-    if (!text && diceVal === null) return;
-    
-    setInputText('');
-    setMood('thinking');
-    
-    const newUserMsg = text ? text : `🎲 判定結果: ${diceVal}`;
-    setChatHistory(prev => [...prev, { id: Date.now().toString(), role: 'user', text: newUserMsg }]);
-
-    const payload = {
-      player_utterance: text,
-      state: gameStateRef.current,
-      roll_result: diceVal,
-      turn: turnCount
-    };
-
-    try {
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: JSON.stringify(payload),
-        config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.7 }
-      });
-
-      const { sayText, data: parsedJson } = parseGeminiResponse(response.text || "");
-
-      const isAwakened = mood === 'awakened' || (parsedJson?.mode === 'awakened');
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-dm", role: 'dm', text: sayText, isAwakened }]);
-
-      if (parsedJson) {
-        setGameState(prev => {
-          const newState = { ...prev };
-          if (parsedJson.state_update) {
-            const up = parsedJson.state_update;
-            if (up.scene) newState.scene = up.scene;
-            if (up.sceneType) newState.sceneType = up.sceneType;
-            if (up.hp !== undefined) newState.hp = up.hp;
-            if (up.sync_delta) newState.sync = Math.min(100, newState.sync + up.sync_delta);
-            if (up.evolution_delta) newState.evolution = Math.min(100, newState.evolution + up.evolution_delta);
-            if (up.inventory_add) newState.inventory = [...new Set([...newState.inventory, ...up.inventory_add])];
-            if (up.inventory_remove) newState.inventory = newState.inventory.filter((i: string) => !up.inventory_remove!.includes(i));
-            if (up.flags_set) newState.flags = [...new Set([...newState.flags, ...up.flags_set])];
-            if (up.memory_add) newState.memory = [{ text: up.memory_add.text, turn: turnCount, icon: up.memory_add.icon || '📝' }, ...newState.memory];
-          }
-          return newState;
-        });
-
-        setNeedsRoll(!!parsedJson.request_roll);
-        if (parsedJson.mode) setMood(parsedJson.mode);
-      }
-
-      setTurnCount(prev => prev + 1);
-      speak(sayText);
-
-    } catch (error) {
-      console.error(error);
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-err", role: 'dm', text: "通信エラー。HTTP召喚に失敗。" }]);
-      setMood('normal');
-    }
-  };
-
-  handleSendMessageRef.current = handleSendMessage;
-
-  const handleRollDice = () => {
-    const val = Math.floor(Math.random() * 20) + 1;
-    const success = val >= 11;
-    setRollResult({ value: val, success });
-    setNeedsRoll(false);
-    setTimeout(() => {
-      setRollResult(null);
-      handleSendMessage("", val);
-    }, 2000);
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsRecording(true);
-      } catch (e) { console.error(e); }
-    }
-  };
-
-  const handleCameraDeclare = () => {
-    const item = prompt("カメラに映したアイテムを宣言してください（例：ペンを剣とする）");
-    if (item) {
-      handleSendMessage(`[カメラ宣言: ${item}]`);
-    }
-  };
-
-  const isAwakened = mood === 'awakened';
 
   return (
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
@@ -392,7 +284,7 @@ export default function App() {
         {/* Input & Buttons */}
         <div className="p-1.5 px-4 pb-2.5 flex flex-col gap-1.5">
           <form 
-            onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
+            onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); setInputText(''); }}
             className="flex gap-1.5"
           >
             <input
