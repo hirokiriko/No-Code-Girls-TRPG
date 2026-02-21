@@ -1,1 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Zen+Antique+Soft&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Zen Antique Soft", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-base: #0c0a14;
+  --color-vermillion: #d4513b;
+  --color-gold: #c9a84c;
+  --color-wisteria: #8b6cc1;
+  --color-porcelain: #e8e2d6;
+  --color-muted: #6b6462;
+  --color-success: #4ade80;
+  --color-bright-gold: #fbbf24;
+  --color-light-gold: #fde68a;
+  --color-light-wisteria: #a78bfa;
+}
+
+@layer base {
+  body {
+    @apply bg-base text-porcelain overflow-hidden;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-[3px];
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-wisteria/20 rounded-[2px];
+  }
+}
+
+@keyframes breathe {
+  0% { opacity: 0.3; transform: scale(1); }
+  100% { opacity: 0.5; transform: scale(1.05); }
+}
+
+@keyframes float0 {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-8px); }
+}
+
+@keyframes float1 {
+  0% { transform: translateY(0) rotate(0); }
+  100% { transform: translateY(-6px) rotate(5deg); }
+}
+
+@keyframes float2 {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-10px); }
+}
+
+@keyframes micPulse {
+  0% { box-shadow: 0 0 0 0 rgba(212, 81, 59, 0.3); }
+  70% { box-shadow: 0 0 0 10px rgba(212, 81, 59, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 81, 59, 0); }
+}
+
+@keyframes flashOut {
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.animate-breathe { animation: breathe 6s ease-in-out infinite alternate; }
+.animate-float-0 { animation: float0 4s ease-in-out infinite alternate; }
+.animate-float-1 { animation: float1 5s ease-in-out infinite alternate; }
+.animate-float-2 { animation: float2 6s ease-in-out infinite alternate; }
+.animate-mic-pulse { animation: micPulse 1.5s infinite; }
+.animate-flash-out { animation: flashOut 0.6s ease-out forwards; }

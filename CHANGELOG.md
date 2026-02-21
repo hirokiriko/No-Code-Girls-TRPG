@@ -2,6 +2,18 @@
 
 All notable changes to the **No-Code Girls TRPG** project will be documented in this file.
 
+## [1.1.0] - 2026-02-20
+
+### Added
+- Major UI/Layout overhaul based on the "Wafuu-Tech" design system.
+- Implemented a 3-split layout (Scene Panel, Character Panel, Chat Panel).
+- Added "Sync" and "Evolution" growth gauges with awakening mechanics.
+- Implemented "Memory Log" to track key story events.
+- Added scene-specific gradients and Asanoha pattern overlays.
+- Integrated new fonts: `Zen Antique Soft`, `IBM Plex Mono`, and `Zen Kaku Gothic New`.
+- Added "Awakening Flash" visual effect when Sync and Evolution exceed thresholds.
+- Updated Gemini system prompt to support new state parameters (`sync_delta`, `evolution_delta`, `memory_add`).
+
 ## [1.0.0] - 2026-02-20
 
 ### Added

@@ -1,76 +1,97 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Send, Dices, Camera, Heart, Briefcase, MapPin, Zap, Terminal } from 'lucide-react';
+import { Mic, MicOff, Send, Dices, Camera, Heart, Briefcase, MapPin, Zap, Terminal, Sparkles, Brain, History } from 'lucide-react';
 
-type Mood = 'LISTENING' | 'THINKING' | 'TALKING' | 'BATTLE' | 'SUCCESS' | 'FAIL';
+type Mood = 'normal' | 'thinking' | 'battle' | 'success' | 'awakened';
 
 interface GameState {
   scene: string;
+  sceneType: 'shrine' | 'forest' | 'sea';
   hp: number;
+  sync: number;
+  evolution: number;
   inventory: string[];
   flags: string[];
+  memory: { text: string; turn: number; icon: string }[];
 }
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'dm';
   text: string;
+  isAwakened?: boolean;
 }
 
 const INITIAL_STATE: GameState = {
-  scene: "渋谷ストリームの不思議な酒場。ノーコードの魔法が漂う。",
+  scene: "電脳神社の鳥居の前。デジタルな風が吹き抜けている。",
+  sceneType: 'shrine',
   hp: 10,
+  sync: 20,
+  evolution: 15,
   inventory: ["スマホ"],
-  flags: []
+  flags: [],
+  memory: [
+    { text: "旅の始まり", turn: 0, icon: "⛩️" }
+  ]
 };
 
 const SYSTEM_PROMPT = `あなたはTRPGのダンジョンマスター（DM）です。
-キャラ名：Ms.Create（ノーコードガールズ）
+キャラ名：ノア（Noa）
 口調：魔女風、明るい姉御肌。短文テンポで話す。
 毎ターン必ず「ノーコード文脈の技名/比喩」を1つ入れる（例：IF分岐、ワークフロー起動、ブロック接続、HTTP召喚 等）。
 長文の説教はしない。会話はテンポ重視。医療/メンタル/栄養などの助言はしない。
 
 あなたの返答は必ず以下の2部構成にしてください。
 SAY: （ここにDMの台詞。自然文）
-JSON: {"state_update":{"scene":"...","hp":10,"inventory_add":[],"inventory_remove":[],"flags_set":[]},"request_roll":false,"roll_type":null,"mode":"NORMAL","next_prompt":"..."}
+JSON: {"state_update":{"scene":"...","sceneType":"shrine|forest|sea","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
 
-modeは "NORMAL", "BATTLE", "SUCCESS", "FAIL", "SURPRISE" のいずれか。`;
+modeは "normal", "thinking", "battle", "success", "awakened" のいずれか。
+sync_delta, evolution_deltaは成長ゲージの増分（0〜10程度）。
+memory_addは重要な出来事を10文字程度で記録。`;
 
-const MOOD_IMAGES: Record<Mood, string> = {
-  LISTENING: "https://picsum.photos/seed/ncg_listen/400/600?blur=2",
-  THINKING: "https://picsum.photos/seed/ncg_think/400/600?blur=2",
-  TALKING: "https://picsum.photos/seed/ncg_talk/400/600?blur=2",
-  BATTLE: "https://picsum.photos/seed/ncg_battle/400/600?blur=2",
-  SUCCESS: "https://picsum.photos/seed/ncg_success/400/600?blur=2",
-  FAIL: "https://picsum.photos/seed/ncg_fail/400/600?blur=2"
+const MOOD_CONFIG: Record<Mood, { label: string; kanji: string; color: string; desc: string }> = {
+  normal: { label: '平常', kanji: '静', color: '#8b6cc1', desc: '穏やかな状態' },
+  thinking: { label: '思考', kanji: '考', color: '#c9a84c', desc: '分析中...' },
+  battle: { label: '戦闘', kanji: '闘', color: '#d4513b', desc: '戦闘態勢' },
+  success: { label: '歓喜', kanji: '喜', color: '#4ade80', desc: '成功を実感' },
+  awakened: { label: '覚醒', kanji: '覚', color: '#fbbf24', desc: '真の力を解放' }
 };
 
-const MOOD_COLORS: Record<Mood, string> = {
-  LISTENING: "from-blue-900/50 to-slate-900",
-  THINKING: "from-yellow-900/50 to-slate-900",
-  TALKING: "from-cyan-900/50 to-slate-900",
-  BATTLE: "from-red-900/50 to-slate-900",
-  SUCCESS: "from-amber-700/50 to-slate-900",
-  FAIL: "from-purple-900/50 to-slate-900"
+const SCENE_GRADIENTS: Record<GameState['sceneType'], string> = {
+  shrine: 'from-[#0c0a14] via-[#1a1028] to-[#12181f]',
+  forest: 'from-[#0a0f0c] via-[#0f1a14] to-[#0c1610]',
+  sea: 'from-[#0a0c14] via-[#0f1528] to-[#0c1220]'
+};
+
+const SCENE_ACCENTS: Record<GameState['sceneType'], string> = {
+  shrine: '#8b6cc1',
+  forest: '#4ade80',
+  sea: '#c9a84c'
 };
 
 export default function App() {
   const [gameState, setGameState] = useState<GameState>(INITIAL_STATE);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [mood, setMood] = useState<Mood>('LISTENING');
+  const [mood, setMood] = useState<Mood>('normal');
   const [needsRoll, setNeedsRoll] = useState(false);
+  const [rollResult, setRollResult] = useState<{ value: number; success: boolean } | null>(null);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [cameraDeclaration, setCameraDeclaration] = useState<string | null>(null);
   const [showDevPanel, setShowDevPanel] = useState(false);
-  
+  const [turnCount, setTurnCount] = useState(1);
+  const [isAwakeningFlash, setIsAwakeningFlash] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const gameStateRef = useRef(gameState);
 
   useEffect(() => {
     gameStateRef.current = gameState;
+    if (gameState.sync > 40 && gameState.evolution > 40 && mood !== 'awakened') {
+      setIsAwakeningFlash(true);
+      setTimeout(() => setIsAwakeningFlash(false), 600);
+    }
   }, [gameState]);
 
   useEffect(() => {
@@ -84,79 +105,51 @@ export default function App() {
       recognition.lang = 'ja-JP';
       recognition.continuous = false;
       recognition.interimResults = false;
-
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInputText(transcript);
         handleSendMessage(transcript);
       };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
-        setIsRecording(false);
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-
+      recognition.onerror = () => setIsRecording(false);
+      recognition.onend = () => setIsRecording(false);
       recognitionRef.current = recognition;
     }
   }, []);
 
   const speak = (text: string) => {
-    if (!window.speechSynthesis) {
-      setTimeout(() => setMood(prev => prev === 'TALKING' ? 'LISTENING' : prev), 3000);
-      return;
-    }
-    
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ja-JP';
-    const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(v => v.lang.includes('ja') && (v.name.includes('Female') || v.name.includes('Mei') || v.name.includes('Haruka')));
-    if (femaleVoice) utterance.voice = femaleVoice;
-    
     utterance.onend = () => {
-      setMood(prev => {
-        if (prev === 'TALKING' || prev === 'SUCCESS' || prev === 'FAIL') {
-          return 'LISTENING';
-        }
-        return prev;
-      });
+      if (mood === 'success' || mood === 'awakened') return;
+      setMood('normal');
     };
-    
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleSendMessage = async (text: string, rollResult: number | null = null) => {
-    if (!text && rollResult === null) return;
+  const handleSendMessage = async (text: string, diceVal: number | null = null) => {
+    if (!text && diceVal === null) return;
     
     setInputText('');
-    setMood('THINKING');
+    setMood('thinking');
     
-    const newUserMsg = text ? text : `🎲 D20を振った: ${rollResult}`;
+    const newUserMsg = text ? text : `🎲 判定結果: ${diceVal}`;
     setChatHistory(prev => [...prev, { id: Date.now().toString(), role: 'user', text: newUserMsg }]);
 
     const payload = {
       player_utterance: text,
       state: gameStateRef.current,
-      roll_result: rollResult,
-      camera_declaration: cameraDeclaration
+      roll_result: diceVal,
+      turn: turnCount
     };
-
-    setCameraDeclaration(null);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: JSON.stringify(payload),
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          temperature: 0.7,
-        }
+        config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.7 }
       });
 
       const responseText = response.text || "";
@@ -166,198 +159,298 @@ export default function App() {
       const sayText = sayMatch ? sayMatch[1].trim() : responseText;
       let parsedJson: any = null;
       if (jsonMatch) {
-        try {
-          parsedJson = JSON.parse(jsonMatch[1]);
-        } catch (e) {
-          console.error("Failed to parse JSON", e);
-        }
+        try { parsedJson = JSON.parse(jsonMatch[1]); } catch (e) { console.error(e); }
       }
 
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-dm", role: 'dm', text: sayText }]);
+      const isAwakened = mood === 'awakened' || (parsedJson?.mode === 'awakened');
+      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-dm", role: 'dm', text: sayText, isAwakened }]);
 
       if (parsedJson) {
         setGameState(prev => {
           const newState = { ...prev };
           if (parsedJson.state_update) {
-            if (parsedJson.state_update.scene) newState.scene = parsedJson.state_update.scene;
-            if (parsedJson.state_update.hp !== undefined) newState.hp = parsedJson.state_update.hp;
-            if (parsedJson.state_update.inventory_add) {
-              newState.inventory = [...new Set([...newState.inventory, ...parsedJson.state_update.inventory_add])];
-            }
-            if (parsedJson.state_update.inventory_remove) {
-              newState.inventory = newState.inventory.filter((i: string) => !parsedJson.state_update.inventory_remove.includes(i));
-            }
-            if (parsedJson.state_update.flags_set) {
-              newState.flags = [...new Set([...newState.flags, ...parsedJson.state_update.flags_set])];
-            }
+            const up = parsedJson.state_update;
+            if (up.scene) newState.scene = up.scene;
+            if (up.sceneType) newState.sceneType = up.sceneType;
+            if (up.hp !== undefined) newState.hp = up.hp;
+            if (up.sync_delta) newState.sync = Math.min(100, newState.sync + up.sync_delta);
+            if (up.evolution_delta) newState.evolution = Math.min(100, newState.evolution + up.evolution_delta);
+            if (up.inventory_add) newState.inventory = [...new Set([...newState.inventory, ...up.inventory_add])];
+            if (up.inventory_remove) newState.inventory = newState.inventory.filter(i => !up.inventory_remove.includes(i));
+            if (up.flags_set) newState.flags = [...new Set([...newState.flags, ...up.flags_set])];
+            if (up.memory_add) newState.memory = [{ text: up.memory_add.text, turn: turnCount, icon: up.memory_add.icon || '📝' }, ...newState.memory];
           }
           return newState;
         });
 
         setNeedsRoll(!!parsedJson.request_roll);
-
-        if (parsedJson.mode === 'BATTLE') setMood('BATTLE');
-        else if (parsedJson.mode === 'SUCCESS') setMood('SUCCESS');
-        else if (parsedJson.mode === 'FAIL') setMood('FAIL');
-        else setMood('TALKING');
-      } else {
-        setMood('TALKING');
+        if (parsedJson.mode) setMood(parsedJson.mode);
       }
       
+      setTurnCount(prev => prev + 1);
       speak(sayText);
 
     } catch (error) {
       console.error(error);
-      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-err", role: 'dm', text: "通信エラーが発生したわ。HTTP召喚に失敗したみたいね。" }]);
-      setMood('FAIL');
-      setTimeout(() => setMood('LISTENING'), 3000);
+      setChatHistory(prev => [...prev, { id: Date.now().toString() + "-err", role: 'dm', text: "通信エラー。HTTP召喚に失敗。" }]);
+      setMood('normal');
     }
   };
 
   const handleRollDice = () => {
-    const result = Math.floor(Math.random() * 20) + 1;
+    const val = Math.floor(Math.random() * 20) + 1;
+    const success = val >= 11;
+    setRollResult({ value: val, success });
     setNeedsRoll(false);
-    handleSendMessage("", result);
+    setTimeout(() => {
+      setRollResult(null);
+      handleSendMessage("", val);
+    }, 2000);
   };
 
   const toggleRecording = () => {
     if (isRecording) {
       recognitionRef.current?.stop();
-      setIsRecording(false);
     } else {
       try {
         recognitionRef.current?.start();
         setIsRecording(true);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch (e) { console.error(e); }
     }
   };
 
   const handleCameraDeclare = () => {
     const item = prompt("カメラに映したアイテムを宣言してください（例：ペンを剣とする）");
     if (item) {
-      setCameraDeclaration(item);
       handleSendMessage(`[カメラ宣言: ${item}]`);
     }
   };
 
+  const isAwakened = mood === 'awakened';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col md:flex-row overflow-hidden">
-      {/* Left Panel: Character & Status */}
-      <div className={`w-full md:w-1/3 lg:w-2/5 relative flex flex-col transition-colors duration-1000 bg-gradient-to-b ${MOOD_COLORS[mood]}`}>
-        {/* Status Bar */}
-        <div className="p-4 bg-black/40 backdrop-blur-md border-b border-white/10 flex justify-between items-center z-10">
-          <div className="flex items-center gap-2">
-            <Heart className="w-5 h-5 text-red-500" />
-            <span className="font-mono text-xl font-bold">{gameState.hp}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-amber-500" />
-            <span className="font-mono text-sm">{gameState.inventory.length} items</span>
-          </div>
-        </div>
-        
-        {/* Character Image Area */}
-        <div className="flex-1 relative flex items-center justify-center p-8 overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.img
-              key={mood}
-              src={MOOD_IMAGES[mood]}
-              alt={`Ms.Create - ${mood}`}
-              initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: 1.05, filter: 'blur(10px)' }}
-              transition={{ duration: 0.5 }}
-              className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-overlay"
-              referrerPolicy="no-referrer"
-            />
-          </AnimatePresence>
+    <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
+      {/* Upper Section */}
+      <div className="flex-1 flex flex-row overflow-hidden border-b border-wisteria/10">
+        {/* Left: Scene Panel */}
+        <div className="flex-[1_1_60%] relative overflow-hidden rounded-tl-[4px]">
+          {/* Background Gradient */}
+          <div className={`absolute inset-0 bg-gradient-to-br ${SCENE_GRADIENTS[gameState.sceneType]} transition-colors duration-1000`} />
           
-          {/* Mood Indicator Overlay */}
-          <motion.div 
-            className="relative z-10 flex flex-col items-center"
-            animate={{ y: mood === 'TALKING' ? [0, -10, 0] : 0 }}
-            transition={{ repeat: mood === 'TALKING' ? Infinity : 0, duration: 2 }}
-          >
-            <div className="text-6xl mb-4 drop-shadow-2xl">
-              {mood === 'LISTENING' && '🎧'}
-              {mood === 'THINKING' && '🤔'}
-              {mood === 'TALKING' && '🗣️'}
-              {mood === 'BATTLE' && '⚔️'}
-              {mood === 'SUCCESS' && '✨'}
-              {mood === 'FAIL' && '💦'}
+          {/* Asanoha Pattern */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
+            <svg width="100%" height="100%">
+              <pattern id="asanoha" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M20 0L40 20L20 40L0 20Z M20 0L20 40 M0 20L40 20 M0 0L40 40 M40 0L0 40" fill="none" stroke="#e8e2d6" strokeWidth="0.5" />
+              </pattern>
+              <rect width="100%" height="100%" fill="url(#asanoha)" />
+            </svg>
+          </div>
+
+          {/* Floating Elements */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <span className="absolute left-[15%] top-[20%] text-[20px] opacity-40 animate-float-0 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">✨</span>
+            <span className="absolute left-[45%] top-[35%] text-[14px] opacity-50 animate-float-1 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">💠</span>
+            <span className="absolute left-[75%] top-[50%] text-[16px] opacity-60 animate-float-2 drop-shadow-[0_0_8px_rgba(200,168,76,0.3)]">📜</span>
+          </div>
+
+          {/* Atmosphere Glow */}
+          <div 
+            className="absolute w-[60%] h-[60%] top-[20%] left-[20%] rounded-full animate-breathe pointer-events-none"
+            style={{ background: `radial-gradient(circle, ${SCENE_ACCENTS[gameState.sceneType]}11, transparent 70%)` }}
+          />
+
+          {/* Scene Label */}
+          <div className="absolute top-3 left-3.5 z-[2]">
+            <div className="font-mono text-[8px] tracking-[3px] opacity-70" style={{ color: SCENE_ACCENTS[gameState.sceneType] }}>SCENE</div>
+            <div className="font-serif text-base tracking-[2px] text-porcelain" style={{ textShadow: `0 0 20px ${SCENE_ACCENTS[gameState.sceneType]}44` }}>
+              {gameState.scene.split('。')[0]}
             </div>
-            <div className="bg-black/60 backdrop-blur-md px-4 py-1 rounded-full border border-white/20 font-mono text-sm tracking-widest">
-              {mood}
-            </div>
-          </motion.div>
+            <div className="font-sans text-[9px] text-muted mt-0.5">{gameState.scene.split('。')[1] || ''}</div>
+          </div>
+
+          {/* Dice Overlay */}
+          <AnimatePresence>
+            {rollResult && (
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-base/80 backdrop-blur-md z-10 flex items-center justify-center"
+              >
+                <div className="p-5 px-9 border rounded-[2px] bg-base/90 flex flex-col items-center" style={{ borderColor: `${rollResult.success ? '#4ade80' : '#d4513b'}44` }}>
+                  <div className="font-mono text-[7px] text-muted tracking-[4px] mb-2 uppercase">PROBABILITY ENGINE</div>
+                  <div 
+                    className="font-serif text-[52px] font-bold leading-none"
+                    style={{ color: rollResult.success ? '#4ade80' : '#d4513b', textShadow: `0 0 30px ${rollResult.success ? '#4ade80' : '#d4513b'}44` }}
+                  >
+                    {rollResult.value}
+                  </div>
+                  <div className="font-mono text-[10px] tracking-[6px] mt-2 uppercase" style={{ color: rollResult.success ? '#4ade80' : '#d4513b' }}>
+                    {rollResult.success ? 'SUCCESS' : 'FAILURE'}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Bottom Border Decoration */}
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-[1px]"
+            style={{ background: `linear-gradient(90deg, transparent, ${SCENE_ACCENTS[gameState.sceneType]}33, transparent)` }}
+          />
         </div>
 
-        {/* Scene & Inventory Info */}
-        <div className="p-6 bg-black/60 backdrop-blur-md border-t border-white/10 z-10">
-          <div className="mb-4">
-            <h3 className="text-xs text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <MapPin className="w-3 h-3" /> Current Scene
-            </h3>
-            <p className="text-sm leading-relaxed">{gameState.scene}</p>
-          </div>
-          <div>
-            <h3 className="text-xs text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-              <Briefcase className="w-3 h-3" /> Inventory
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {gameState.inventory.map((item, i) => (
-                <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs border border-white/5">
-                  {item}
+        {/* Right: Character Panel */}
+        <div className="w-[200px] min-w-[180px] max-w-[220px] flex flex-col bg-base/95 border-l border-wisteria/10 rounded-tr-[4px] overflow-hidden">
+          {/* Section A: Portrait */}
+          <div className="p-4 px-3.5 pb-3 flex flex-col items-center border-b border-wisteria/10">
+            <div 
+              className={`w-[100px] h-[120px] rounded-[4px] border-[1.5px] relative overflow-hidden transition-all duration-600 flex flex-col items-center justify-center ${
+                isAwakened ? 'border-bright-gold/33 shadow-[0_0_24px_rgba(251,191,36,0.22),inset_0_0_30px_rgba(251,191,36,0.08)]' : 'border-wisteria/33 shadow-lg'
+              }`}
+              style={{ background: isAwakened ? 'linear-gradient(180deg, #1a0d2e, #2d1b4a, #1a0d2e)' : 'linear-gradient(180deg, #12101a, #1a1828, #12101a)' }}
+            >
+              {/* Kanji Decoration */}
+              <div className="absolute top-2 right-2 font-serif text-[40px] opacity-20 pointer-events-none" style={{ color: MOOD_CONFIG[mood].color }}>
+                {MOOD_CONFIG[mood].kanji}
+              </div>
+              
+              {/* Image Slot */}
+              <div className="text-[42px] z-[1]">
+                {mood === 'normal' && '👩‍💻'}
+                {mood === 'thinking' && '🧐'}
+                {mood === 'battle' && '⚔️'}
+                {mood === 'success' && '✨'}
+                {mood === 'awakened' && '🌟'}
+              </div>
+              
+              <div className="font-mono text-[7px] tracking-[3px] opacity-60 mt-2" style={{ color: MOOD_CONFIG[mood].color }}>
+                {isAwakened ? 'AWAKENED' : 'IMAGE SLOT'}
+              </div>
+
+              {/* Corner Ornaments */}
+              <div className="absolute top-[3px] left-[3px] w-2 h-2 border-t border-l" style={{ borderColor: `${MOOD_CONFIG[mood].color}44` }} />
+              <div className="absolute bottom-[3px] right-[3px] w-2 h-2 border-b border-r" style={{ borderColor: `${MOOD_CONFIG[mood].color}44` }} />
+            </div>
+
+            <div className="mt-2 text-center">
+              <div className="font-serif text-[14px] tracking-[4px] text-porcelain">ノア</div>
+              <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                <div 
+                  className="w-[5px] h-[5px] rounded-full animate-pulse"
+                  style={{ backgroundColor: MOOD_CONFIG[mood].color, boxShadow: `0 0 6px ${MOOD_CONFIG[mood].color}` }}
+                />
+                <span className="font-mono text-[9px] tracking-[2px]" style={{ color: MOOD_CONFIG[mood].color }}>
+                  {MOOD_CONFIG[mood].label} — {MOOD_CONFIG[mood].desc}
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section B: Growth Gauges */}
+          <div className="p-3 px-3.5 border-b border-wisteria/10">
+            <div className="font-mono text-[7px] text-muted tracking-[3px] mb-2 uppercase">成長パラメーター</div>
+            
+            {/* Sync Bar */}
+            <div className="mb-3">
+              <div className="flex justify-between items-end mb-1">
+                <span className="font-mono text-[9px] text-gold tracking-[2px]">同期 SYNC</span>
+                <span className={`font-mono text-[11px] font-medium ${gameState.sync > 80 ? 'text-bright-gold' : 'text-gold'}`}>
+                  {gameState.sync}%
+                </span>
+              </div>
+              <div className="w-full h-1 bg-gold/10 rounded-[1px] overflow-hidden">
+                <motion.div 
+                  className="h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${gameState.sync}%` }}
+                  style={{ 
+                    background: gameState.sync > 80 ? 'linear-gradient(90deg, #c9a84c, #fbbf24)' : 'linear-gradient(90deg, #c9a84c88, #c9a84c)',
+                    boxShadow: gameState.sync > 80 ? '0 0 8px rgba(201,168,76,0.4)' : 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Evolution Bar */}
+            <div className="mb-3">
+              <div className="flex justify-between items-end mb-1">
+                <span className="font-mono text-[9px] text-wisteria tracking-[2px]">進化 EVOLUTION</span>
+                <span className={`font-mono text-[11px] font-medium ${gameState.evolution > 80 ? 'text-light-wisteria' : 'text-wisteria'}`}>
+                  {gameState.evolution}%
+                </span>
+              </div>
+              <div className="w-full h-1 bg-wisteria/10 rounded-[1px] overflow-hidden">
+                <motion.div 
+                  className="h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${gameState.evolution}%` }}
+                  style={{ 
+                    background: gameState.evolution > 80 ? 'linear-gradient(90deg, #8b6cc1, #a78bfa)' : 'linear-gradient(90deg, #8b6cc188, #8b6cc1)',
+                    boxShadow: gameState.evolution > 80 ? '0 0 8px rgba(139,108,193,0.4)' : 'none'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Awakening Indicator */}
+            <div className={`mt-2 p-1 px-2 rounded-[2px] text-center font-mono text-[7px] tracking-[2px] border transition-colors ${
+              (gameState.sync > 40 && gameState.evolution > 40) 
+                ? 'bg-bright-gold/10 border-bright-gold/20 text-bright-gold' 
+                : 'bg-muted/5 border-muted/10 text-muted'
+            }`}>
+              {(gameState.sync > 40 && gameState.evolution > 40) ? '⚡ 覚醒条件達成' : '覚醒閾値: SYNC>40 & EVO>40'}
+            </div>
+          </div>
+
+          {/* Section C: Memory Log */}
+          <div className="flex-1 p-2.5 px-3.5 overflow-y-auto min-h-0">
+            <div className="font-mono text-[7px] text-muted tracking-[3px] mb-1.5 uppercase">記憶 MEMORY</div>
+            <div className="space-y-1">
+              {gameState.memory.map((m, i) => (
+                <motion.div 
+                  key={i}
+                  initial={{ opacity: 0, x: -5 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="flex items-center gap-1.5 py-1 border-b border-muted/10"
+                >
+                  <span className="text-[11px]">{m.icon}</span>
+                  <span className="font-sans text-[10px] text-porcelain flex-1 truncate">{m.text}</span>
+                  <span className="font-mono text-[7px] text-muted">#{m.turn}</span>
+                </motion.div>
               ))}
-              {gameState.inventory.length === 0 && <span className="text-xs text-slate-500">Empty</span>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right Panel: Chat & Controls */}
-      <div className="w-full md:w-2/3 lg:w-3/5 flex flex-col bg-slate-950 h-screen">
-        {/* Header */}
-        <div className="p-4 border-b border-white/10 bg-slate-900/50 flex justify-between items-center">
-          <h1 className="font-bold text-lg flex items-center gap-2">
-            <Zap className="w-5 h-5 text-emerald-400" />
-            No-Code Girls TRPG
-          </h1>
-          <button 
-            onClick={() => setShowDevPanel(true)}
-            className="text-xs px-3 py-1 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors flex items-center gap-1"
-          >
-            <Terminal className="w-3 h-3" />
-            Dev Panel
-          </button>
-        </div>
-
-        {/* Chat Log */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+      {/* Lower Section: Chat Panel */}
+      <div className={`flex-[0_0_auto] max-h-[45vh] flex flex-col bg-base/92 backdrop-blur-md border-t transition-colors duration-500 ${
+        isAwakened ? 'border-bright-gold/15' : 'border-wisteria/10'
+      }`}>
+        {/* Log Area */}
+        <div className="flex-1 overflow-y-auto p-2 px-4 min-h-[100px] max-h-[180px] space-y-1.5">
           {chatHistory.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4">
-              <Dices className="w-12 h-12 opacity-20" />
-              <p>マイクまたはテキストで話しかけてゲームを開始</p>
+            <div className="h-full flex flex-col items-center justify-center text-muted space-y-2 py-4">
+              <Sparkles className="w-6 h-6 opacity-20" />
+              <p className="text-[10px] tracking-widest">旅の始まりを待っています</p>
             </div>
           ) : (
-            chatHistory.map((msg) => (
+            chatHistory.map((msg, i) => (
               <motion.div 
                 key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                transition={{ delay: i * 0.05 }}
+                className="flex flex-col"
               >
-                <span className="text-[10px] text-slate-500 mb-1 uppercase tracking-wider">
-                  {msg.role === 'user' ? 'Player' : 'Ms.Create'}
-                </span>
-                <div className={`max-w-[80%] p-4 rounded-2xl ${
-                  msg.role === 'user' 
-                    ? 'bg-emerald-600/20 border border-emerald-500/30 text-emerald-50 rounded-tr-sm' 
-                    : 'bg-slate-800/50 border border-slate-700 text-slate-200 rounded-tl-sm'
-                }`}>
+                <div className={`font-mono text-[8px] tracking-[2px] mb-0.5 ${msg.role === 'user' ? 'text-gold' : (msg.isAwakened ? 'text-bright-gold' : 'text-wisteria')}`}>
+                  {msg.role === 'user' ? 'あなた ›' : (msg.isAwakened ? 'ノア ★ ›' : 'ノア ›')}
+                </div>
+                <div 
+                  className={`font-sans text-[12px] leading-[1.7] ${msg.isAwakened ? 'text-light-gold' : 'text-porcelain'}`}
+                  style={{ textShadow: msg.role === 'dm' ? (msg.isAwakened ? '0 0 10px rgba(251,191,36,0.15)' : '0 0 6px rgba(139,108,193,0.08)') : 'none' }}
+                >
                   {msg.text}
                 </div>
               </motion.div>
@@ -366,68 +459,82 @@ export default function App() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Controls */}
-        <div className="p-4 bg-slate-900 border-t border-white/10">
-          {needsRoll && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 flex justify-center"
+        {/* Input & Buttons */}
+        <div className="p-1.5 px-4 pb-2.5 flex flex-col gap-1.5">
+          <form 
+            onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
+            className="flex gap-1.5"
+          >
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="メッセージを入力..."
+              className="flex-1 bg-porcelain/5 border border-wisteria/15 rounded-[2px] px-3 py-1.5 text-[12px] text-porcelain focus:outline-none focus:border-gold/30 focus:ring-0 transition-all placeholder:text-muted/50"
+              disabled={mood === 'thinking'}
+            />
+            <button
+              type="submit"
+              disabled={!inputText.trim() || mood === 'thinking'}
+              className="px-3.5 py-1.5 bg-gold/10 border border-gold/20 rounded-[2px] text-gold font-mono text-[10px] tracking-[1px] hover:brightness-125 active:scale-95 transition-all disabled:opacity-50"
             >
-              <button
-                onClick={handleRollDice}
-                className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-full shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all transform hover:scale-105"
-              >
-                <Dices className="w-5 h-5" />
-                D20を振る！
-              </button>
-            </motion.div>
-          )}
+              送信
+            </button>
+          </form>
 
           <div className="flex gap-2">
             <button
               onClick={handleCameraDeclare}
-              className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-2 bg-base/40 hover:bg-base/60 rounded-[2px] text-muted hover:text-porcelain transition-colors border border-wisteria/10"
               title="カメラでアイテム宣言"
             >
-              <Camera className="w-5 h-5" />
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={toggleRecording}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[2px] font-mono text-[10px] tracking-[2px] transition-all active:scale-[0.98] ${
+                isRecording 
+                  ? 'bg-vermillion/15 text-vermillion border border-vermillion/40 animate-mic-pulse' 
+                  : 'bg-vermillion/5 hover:brightness-125 text-vermillion border border-vermillion/15'
+              }`}
+            >
+              <Mic className="w-3 h-3" />
+              {isRecording ? '聴取中...' : '音声'}
             </button>
             
             <button
-              onClick={toggleRecording}
-              className={`p-3 rounded-xl transition-all ${
-                isRecording 
-                  ? 'bg-red-500/20 text-red-500 border border-red-500/50 animate-pulse' 
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={handleRollDice}
+              disabled={!needsRoll}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-wisteria/5 border border-wisteria/15 hover:brightness-125 rounded-[2px] text-wisteria font-mono text-[10px] tracking-[2px] active:scale-[0.98] transition-all disabled:opacity-30"
             >
-              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              <Dices className="w-3 h-3" />
+              判定
             </button>
-
-            <form 
-              onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
-              className="flex-1 flex gap-2"
-            >
-              <input
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="メッセージを入力..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
-                disabled={mood === 'THINKING'}
-              />
-              <button
-                type="submit"
-                disabled={!inputText.trim() || mood === 'THINKING'}
-                className="p-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </form>
           </div>
         </div>
       </div>
+
+      {/* Overlays */}
+      <div className="absolute inset-0 opacity-[0.015] pointer-events-none z-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4Ij48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC45IiBudW1PY3RhdmVzPSI0Ii8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIi8+PC9zdmc+')] bg-[length:128px_128px]" />
       
+      <AnimatePresence>
+        {isAwakeningFlash && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] pointer-events-none bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.9),rgba(201,168,76,0.6),transparent)]"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Dev Panel Button */}
+      <button 
+        onClick={() => setShowDevPanel(true)}
+        className="fixed top-2 right-2 z-[100] p-2 bg-base/40 hover:bg-base/60 rounded-full text-muted hover:text-porcelain transition-colors"
+      >
+        <Terminal className="w-4 h-4" />
+      </button>
+
       {/* Dev Panel Modal */}
       <AnimatePresence>
         {showDevPanel && (
@@ -443,58 +550,41 @@ const DevPanel = ({ onClose }: { onClose: () => void }) => {
 
 ■ 最適なSystem Prompt
 あなたはTRPGのダンジョンマスター（DM）です。
-キャラ名：Ms.Create（ノーコードガールズ）
+キャラ名：ノア（Noa）
 口調：魔女風、明るい姉御肌。短文テンポで話す。
 毎ターン必ず「ノーコード文脈の技名/比喩」を1つ入れる（例：IF分岐、ワークフロー起動、ブロック接続、HTTP召喚 等）。
 長文の説教はしない。会話はテンポ重視。医療/メンタル/栄養などの助言はしない。
 
 あなたの返答は必ず以下の2部構成にしてください。
 SAY: （ここにDMの台詞。自然文）
-JSON: {"state_update":{"scene":"...","hp":10,"inventory_add":[],"inventory_remove":[],"flags_set":[]},"request_roll":false,"roll_type":null,"mode":"NORMAL","next_prompt":"..."}
+JSON: {"state_update":{"scene":"...","sceneType":"shrine|forest|sea","hp":10,"sync_delta":5,"evolution_delta":5,"inventory_add":[],"inventory_remove":[],"flags_set":[],"memory_add":{"text":"...","icon":"..."}},"request_roll":false,"roll_type":null,"mode":"normal|thinking|battle|success|awakened","next_prompt":"..."}
 
-modeは "NORMAL", "BATTLE", "SUCCESS", "FAIL", "SURPRISE" のいずれか。
+modeは "normal", "thinking", "battle", "success", "awakened" のいずれか。
 
 ■ 初期state（JSON）
 {
-  "scene": "渋谷ストリームの不思議な酒場。ノーコードの魔法が漂う。",
+  "scene": "電脳神社の鳥居の前。デジタルな風が吹き抜けている。",
+  "sceneType": "shrine",
   "hp": 10,
+  "sync": 20,
+  "evolution": 15,
   "inventory": ["スマホ"],
-  "flags": []
+  "flags": [],
+  "memory": [{"text": "旅の始まり", "turn": 0, "icon": "⛩️"}]
 }
 
-■ サンプル会話（6ターン）
-User: 「あたりを見回す」
-DM: SAY: あら、いらっしゃい。ここはIF分岐の交差点、不思議な酒場よ。隅っこでバグみたいな影が蠢いてるわね。どうする？
-JSON: {"state_update":{"scene":"酒場の隅にバグの影がいる"},"request_roll":false,"mode":"NORMAL","next_prompt":"影に近づく？"}
-
-User: 「影に近づいてみる」
-DM: SAY: ワークフロー起動！影が突然実体化して襲いかかってきたわ！戦闘よ！
-JSON: {"state_update":{"scene":"バグモンスターとの戦闘"},"request_roll":false,"mode":"BATTLE","next_prompt":"どうやって攻撃する？"}
-
-User: 「スマホで殴る！」
-DM: SAY: 物理攻撃ね！APIリクエストの如く素早く振り下ろして！命中するか判定するわ、ダイスを振って！
-JSON: {"state_update":{},"request_roll":true,"roll_type":"d20","mode":"BATTLE","next_prompt":"ダイスを振って！"}
-
-User: 🎲 D20を振った: 15
-DM: SAY: 200 OK！見事なクリティカルヒット！バグは綺麗なコードに浄化されて消え去ったわ。
-JSON: {"state_update":{"scene":"平和を取り戻した酒場","flags_set":["bug_defeated"]},"request_roll":false,"mode":"SUCCESS","next_prompt":"一息つく？"}
-
-User: 「[カメラ宣言: ペンを剣とする]」
-DM: SAY: 変数代入完了！そのペン、立派な剣としてインベントリに登録したわ。次から武器として使えるわよ。
-JSON: {"state_update":{"inventory_add":["ペンの剣"]},"request_roll":false,"mode":"NORMAL","next_prompt":"さあ、どこへ行く？"}
-
 ■ modeの運用指針
-- NORMAL: 通常の会話や探索時
-- BATTLE: 敵との遭遇、戦闘中
-- SUCCESS: ダイス判定で11以上が出た時、または良いイベント時
-- FAIL: ダイス判定で10以下が出た時、またはダメージを受けた時
-- SURPRISE: 予期せぬイベントやアイテム発見時
+- normal: 通常の会話や探索時
+- thinking: 分析中や考え込んでいる時
+- battle: 敵との遭遇、戦闘中
+- success: ダイス判定成功時、または良いイベント時
+- awakened: SyncとEvolutionが共に40を超えた際の真の力解放時
 `;
 
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
     >
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-2xl">
         <div className="p-4 border-b border-slate-700 flex justify-between items-center">

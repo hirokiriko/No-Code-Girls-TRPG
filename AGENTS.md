@@ -7,8 +7,9 @@ The application is a React-based Single Page Application (SPA) that integrates d
 
 ### Key Components
 - **`src/App.tsx`**: Main entry point containing the game loop, state management, and UI.
+- **Wafuu-Tech Design System**: A custom aesthetic combining traditional Japanese elements (Asanoha patterns, Zen fonts) with technical UI (Monospace fonts, growth gauges).
 - **Gemini Integration**: Uses `@google/genai` to communicate with `gemini-3-flash-preview`.
-- **State Management**: Uses React `useState` for game state (scene, hp, inventory, flags).
+- **State Management**: Uses React `useState` for game state (scene, hp, sync, evolution, inventory, flags, memory).
 - **Voice Interaction**: Uses Web Speech API for recognition and Speech Synthesis API for text-to-speech.
 
 ## Gemini Communication Protocol
@@ -21,26 +22,29 @@ The DM (Gemini) must follow a strict two-part response format:
 {
   "state_update": {
     "scene": "string (optional)",
+    "sceneType": "shrine | forest | sea (optional)",
     "hp": "number (optional)",
+    "sync_delta": "number (optional)",
+    "evolution_delta": "number (optional)",
     "inventory_add": "string[] (optional)",
     "inventory_remove": "string[] (optional)",
-    "flags_set": "string[] (optional)"
+    "flags_set": "string[] (optional)",
+    "memory_add": { "text": "string", "icon": "string" } (optional)
   },
   "request_roll": "boolean",
   "roll_type": "d20 | null",
-  "mode": "NORMAL | BATTLE | SUCCESS | FAIL | SURPRISE",
+  "mode": "normal | thinking | battle | success | awakened",
   "next_prompt": "string"
 }
 ```
 
 ## UI & Mood System
 The UI reacts to the `mode` returned in the JSON or the current interaction state:
-- `LISTENING`: Waiting for user input.
-- `THINKING`: Waiting for Gemini response.
-- `TALKING`: DM is speaking (TTS active).
-- `BATTLE`: Combat mode.
-- `SUCCESS`: Positive outcome/Critical hit.
-- `FAIL`: Negative outcome/Damage.
+- `normal`: Waiting for user input.
+- `thinking`: Waiting for Gemini response.
+- `battle`: Combat mode.
+- `success`: Positive outcome/Critical hit.
+- `awakened`: True power released (Sync > 40 & Evo > 40).
 
 ## Development Constraints
 - **API Keys**: `GEMINI_API_KEY` is injected via `process.env`.
