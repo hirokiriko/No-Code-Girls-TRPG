@@ -65,9 +65,9 @@ export const SCENE_BACKGROUNDS: Record<SceneType, string[]> = {
 
 /** キャラクター動画アセット（public/assets/character/ に配置）。移動・エモート・アニメーション用。 */
 export const CHARACTER_VIDEOS = {
-  movement: ['movement_01.mp4'],
+  movement: ['movement_01.mp4', 'movement_02.mp4'], // [0]渋谷ストリーム到着, [1]浅草到着
   emote: ['emote_01.mp4', 'emote_02.mp4'],
-  animation: ['animation_01.mp4'],
+  animation: ['animation_02.mp4'],
 } as const;
 
 /** キャラ動画のフルURLを取得。base は import.meta.env.BASE_URL を渡す。 */

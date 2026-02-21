@@ -78,6 +78,20 @@ The DM (Gemini) must follow a strict two-part response format:
 }
 ```
 
+## Character Animation System
+
+キャラクター動画は `public/assets/character/` に配置し、`constants/index.ts` の `CHARACTER_VIDEOS` で管理する。
+
+| カテゴリ | ファイル | トリガー |
+|----------|----------|----------|
+| `movement` | `movement_01.mp4` | `sceneType` が `shibuya_stream` に変化した時（全画面オーバーレイ、z-150） |
+| `movement` | `movement_02.mp4` | `sceneType` が `asakusa` に変化した時（全画面オーバーレイ、z-150） |
+| `emote` | `emote_01.mp4` | mood が `success` または `battle` に変化した時（キャラパネル内） |
+| `emote` | `emote_02.mp4` | mood が `awakened` に変化した時（キャラパネル内） |
+
+- **全画面移動動画**: `AnimatedOverlay` + `<video>` で `fixed inset-0 z-[150]` に表示。`onEnded` で自動的に非表示。
+- **エモート動画**: `CharacterPanel` のポートレートエリアに `emoteVideoUrl` prop 経由で注入。`onEmoteEnd` コールバックで親の state をクリア。
+
 ## UI & Mood System
 The UI reacts to the `mode` returned in the JSON or the current interaction state:
 - `normal`: Waiting for user input.

@@ -15,6 +15,7 @@ import { ApiKeyScreen } from './components/ApiKeyScreen';
 import { getApiKey, setApiKey } from './services/geminiClient';
 import { generateSceneImage } from './services/imagenClient';
 import { unlockAudioContext } from './services/ttsClient';
+import { getCharacterVideoUrl } from './constants';
 
 export default function App() {
   const [hasApiKey, setHasApiKey] = useState(() => !!getApiKey());
@@ -36,6 +37,10 @@ export default function App() {
 
 function Game() {
   const [showDevPanel, setShowDevPanel] = useState(false);
+  const [movementVideoUrl, setMovementVideoUrl] = useState<string | null>(null);
+  const [emoteVideoUrl, setEmoteVideoUrl] = useState<string | null>(null);
+  const prevMoodRef = useRef<string>('normal');
+  const prevSceneTypeRef = useRef<string>('');
 
   const {
     gameState, setGameState, mood, setMood,
@@ -98,6 +103,32 @@ function Game() {
     }
   }, [awakeningMessage]);
 
+  // mood 変化時にエモート動画をトリガー
+  useEffect(() => {
+    if (prevMoodRef.current === mood) return;
+    prevMoodRef.current = mood;
+
+    if (mood === 'success' || mood === 'battle') {
+      setEmoteVideoUrl(getCharacterVideoUrl('emote', 0));
+    } else if (mood === 'awakened') {
+      setEmoteVideoUrl(getCharacterVideoUrl('emote', 1));
+    }
+  }, [mood]);
+
+  // 特定 sceneType への到着時のみ移動動画を全画面再生
+  useEffect(() => {
+    const prev = prevSceneTypeRef.current;
+    const curr = gameState.sceneType;
+    prevSceneTypeRef.current = curr;
+    if (prev === curr || prev === '') return; // 初期化時はスキップ
+
+    if (curr === 'shibuya_stream') {
+      setMovementVideoUrl(getCharacterVideoUrl('movement', 0)); // movement_01.mp4
+    } else if (curr === 'asakusa') {
+      setMovementVideoUrl(getCharacterVideoUrl('movement', 1)); // movement_02.mp4
+    }
+  }, [gameState.sceneType]);
+
   return (
     <div className="w-full h-screen bg-base flex flex-col overflow-hidden font-sans selection:bg-gold/30">
       <div className="h-[200px] md:h-[280px] shrink-0 flex flex-row overflow-hidden border-b border-wisteria/10">
@@ -106,7 +137,13 @@ function Game() {
           scene={gameState.scene}
           generatedImageUrl={sceneImageUrl}
         />
-        <CharacterPanel mood={mood} gameState={gameState} isAwakened={isAwakened} />
+        <CharacterPanel
+          mood={mood}
+          gameState={gameState}
+          isAwakened={isAwakened}
+          emoteVideoUrl={emoteVideoUrl}
+          onEmoteEnd={() => setEmoteVideoUrl(null)}
+        />
       </div>
 
       <ChatPanel
@@ -129,6 +166,24 @@ function Game() {
         show={isAwakeningFlash}
         className="absolute inset-0 z-[100] pointer-events-none bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.9),rgba(201,168,76,0.6),transparent)]"
       />
+
+      {/* 移動アニメーション: 特定シーン到着時のみ全画面再生 */}
+      <AnimatedOverlay
+        show={movementVideoUrl !== null}
+        className="fixed inset-0 z-[150] bg-black/70 flex items-center justify-center pointer-events-none"
+      >
+        {movementVideoUrl && (
+          <video
+            key={movementVideoUrl}
+            src={movementVideoUrl}
+            autoPlay
+            muted
+            playsInline
+            className="w-full h-full object-contain"
+            onEnded={() => setMovementVideoUrl(null)}
+          />
+        )}
+      </AnimatedOverlay>
 
       <button
         onClick={() => setShowDevPanel(true)}

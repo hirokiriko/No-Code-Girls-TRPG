@@ -48,9 +48,11 @@ interface CharacterPanelProps {
   mood: Mood;
   gameState: GameState;
   isAwakened: boolean;
+  emoteVideoUrl?: string | null;
+  onEmoteEnd?: () => void;
 }
 
-export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelProps) {
+export function CharacterPanel({ mood, gameState, isAwakened, emoteVideoUrl, onEmoteEnd }: CharacterPanelProps) {
   const [imgError, setImgError] = useState(false);
   useEffect(() => setImgError(false), [mood]);
   return (
@@ -67,7 +69,17 @@ export function CharacterPanel({ mood, gameState, isAwakened }: CharacterPanelPr
             {MOOD_CONFIG[mood].kanji}
           </div>
           <div className="z-[1]">
-            {imgError ? (
+            {emoteVideoUrl ? (
+              <video
+                key={emoteVideoUrl}
+                src={emoteVideoUrl}
+                autoPlay
+                muted
+                playsInline
+                className="w-[80px] h-[100px] object-cover"
+                onEnded={onEmoteEnd}
+              />
+            ) : imgError ? (
               <span className="text-[42px]">{MOOD_IMAGES[mood].fallback}</span>
             ) : (
               <img
