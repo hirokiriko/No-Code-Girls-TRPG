@@ -85,6 +85,7 @@ export default function App() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const gameStateRef = useRef(gameState);
+  const handleSendMessageRef = useRef<(text: string, diceVal?: number | null) => void>(() => {});
 
   useEffect(() => {
     gameStateRef.current = gameState;
@@ -108,7 +109,7 @@ export default function App() {
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInputText(transcript);
-        handleSendMessage(transcript);
+        handleSendMessageRef.current(transcript);
       };
       recognition.onerror = () => setIsRecording(false);
       recognition.onend = () => setIsRecording(false);
@@ -196,6 +197,8 @@ export default function App() {
       setMood('normal');
     }
   };
+
+  handleSendMessageRef.current = handleSendMessage;
 
   const handleRollDice = () => {
     const val = Math.floor(Math.random() * 20) + 1;
